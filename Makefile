@@ -1,7 +1,7 @@
 PYTHON ?= python3.12
 
 .PHONY: install web-install lint format-check typecheck test web-test web-build \
-	compose-check check dev down logs
+	compose-check graph-schema check dev down logs
 
 install:
 	$(PYTHON) -m pip install -e ".[dev]"
@@ -29,6 +29,9 @@ web-build:
 
 compose-check:
 	docker compose config --quiet
+
+graph-schema:
+	threatgraph-schema
 
 dev:
 	docker compose up --build

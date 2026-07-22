@@ -22,6 +22,8 @@ x-backend-service: &backend-service
       condition: service_healthy
     redis:
       condition: service_healthy
+    graph-init:
+      condition: service_completed_successfully
   restart: unless-stopped
 
 services:
@@ -83,6 +85,17 @@ services:
       timeout: 3s
       retries: 20
     restart: unless-stopped
+
+  graph-init:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    environment: *backend-environment
+    command: ["threatgraph-schema"]
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    restart: "no"
 
   api:
     <<: *backend-service

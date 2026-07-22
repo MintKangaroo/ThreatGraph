@@ -1,9 +1,9 @@
 # Roadmap
 
-1. **Platform foundation (current):** FastAPI, PostgreSQL, Neo4j, Redis/Celery, React, Compose, and
+1. **Platform foundation (complete):** FastAPI, PostgreSQL, Neo4j, Redis/Celery, React, Compose, and
    health checks.
-2. **Graph schema and repositories:** typed entities, evidence-backed edges, constraints, indexes,
-   and workspace isolation.
+2. **Graph schema and repositories (current):** typed entities, evidence-backed edges, constraints,
+   indexes, idempotent upserts, and workspace isolation.
 3. **STIX 2.1:** bundle import/export and TAXII adapter boundaries.
 4. **IOC pipeline:** normalization, stable identity keys, deduplication, and optional masking.
 5. **MITRE ATT&CK:** knowledge import and technique mapping, including Sigma mapping adapters.
