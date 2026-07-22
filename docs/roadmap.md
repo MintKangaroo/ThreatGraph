@@ -1,0 +1,17 @@
+# Roadmap
+
+1. **Platform foundation (current):** FastAPI, PostgreSQL, Neo4j, Redis/Celery, React, Compose, and
+   health checks.
+2. **Graph schema and repositories:** typed entities, evidence-backed edges, constraints, indexes,
+   and workspace isolation.
+3. **STIX 2.1:** bundle import/export and TAXII adapter boundaries.
+4. **IOC pipeline:** normalization, stable identity keys, deduplication, and optional masking.
+5. **MITRE ATT&CK:** knowledge import and technique mapping, including Sigma mapping adapters.
+6. **Correlation:** time windows, common IOC/asset/identity, and technique-chain correlation.
+7. **Graph query API:** neighborhood, shortest path, time range, and incident subgraph queries with
+   pagination and limits.
+8. **Visualization:** Cytoscape.js explorer, filters, expansion, time slider, and evidence panel.
+9. **Grounded narratives:** incident and ATT&CK-chain explanations with explicit missing evidence.
+10. **Platform adapters:** AI-SOC Dashboard, AutoPentest AI, and SentinelFlow integrations.
+
+Each milestone must remain independently testable and is committed separately.
