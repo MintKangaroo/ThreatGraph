@@ -7,6 +7,7 @@ describe("ThreatGraph dashboard", () => {
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+    window.history.replaceState({}, "", "/");
   });
 
   it("renders the graph workspace and reports a healthy API", async () => {
@@ -57,5 +58,21 @@ describe("ThreatGraph dashboard", () => {
 
     expect(screen.getByRole("heading", { name: "StealC" })).toBeInTheDocument();
     expect(screen.getByText("Threat intelligence feed")).toBeInTheDocument();
+  });
+
+  it("opens a shareable critical-path investigation deep link", () => {
+    window.history.replaceState({}, "", "/?view=critical&entity=ip-c2");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+
+    render(<App />);
+
+    expect(screen.getByRole("button", { name: "Critical path" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(
+      screen.getByRole("heading", { name: "185.220.101.17" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Network detection")).toBeInTheDocument();
   });
 });

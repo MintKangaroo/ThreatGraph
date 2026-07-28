@@ -19,6 +19,8 @@
 
 <p align="center">
   <img src="docs/assets/threatgraph-dashboard.png" alt="ThreatGraph 관계 그래프 대시보드" width="100%" />
+  <br />
+  <sub>Workspace overview — metrics, relationship graph, entity details, and grounded Evidence</sub>
 </p>
 
 > [!NOTE]
@@ -36,19 +38,16 @@ Technique를 하나의 그래프로 정규화하고, 관계마다 Evidence와 �
 | --- | --- | --- | --- |
 | STIX 객체와 IOC를 결정적 identity로 중복 제거 | 검색·필터·시간 범위로 공격 경로 탐색 | 모든 edge에 출처와 Evidence 연결 | 모든 저장·조회가 `workspace_id`로 제한 |
 
-```text
-Security events / STIX / TAXII
-              │
-              ▼
-    Normalize & deduplicate IOC
-              │
-              ▼
-  Evidence-backed threat graph
-              │
-              ├── Workspace Graph API
-              ├── Interactive Dashboard
-              └── Grounded investigation context
-```
+## 한눈에 보는 데이터 흐름
+
+<p align="center">
+  <img src="docs/assets/threatgraph-flow.svg" alt="ThreatGraph 데이터 수집, 정규화, 그래프 상관분석, 조사 흐름도" width="100%" />
+</p>
+
+1. **Collect** — STIX/TAXII, SIEM·EDR 이벤트, IOC 피드를 입력받습니다.
+2. **Normalize** — 객체를 검증·보존하고 IOC를 canonicalize, deduplicate, mask합니다.
+3. **Correlate** — 17개 엔터티와 13개 관계를 workspace-scoped Neo4j 그래프로 연결합니다.
+4. **Investigate** — 제한된 Graph API를 통해 검색·Critical path·Evidence 조사 화면을 제공합니다.
 
 ## 주요 기능
 
@@ -61,6 +60,13 @@ Security events / STIX / TAXII
 - 확대·축소·초기화 및 현재 subgraph JSON 내보내기
 - API 상태 표시, 오프라인 데모 fallback, 반응형 레이아웃
 - `VITE_WORKSPACE_ID` 또는 `?workspace=<UUID>`를 통한 실제 워크스페이스 조회
+- `?view=critical&entity=<ID>` 형태의 공유 가능한 조사 deep link
+
+<p align="center">
+  <img src="docs/assets/threatgraph-investigation.png" alt="Critical path가 강조되고 IOC Evidence가 선택된 ThreatGraph 조사 화면" width="100%" />
+  <br />
+  <sub>Critical path investigation — suspicious edges highlighted with IOC evidence in context</sub>
+</p>
 
 ### Evidence-first graph core
 
@@ -259,7 +265,8 @@ threatgraph/
 현재 검증 기준:
 
 - Backend: **63 tests**, **100% statement coverage**
-- Frontend: dashboard rendering, API fallback, graph selection/filter, global search
+- Frontend: **7 tests**, dashboard rendering, API fallback, graph selection/filter, deep link,
+  global search
 - `ruff` lint/format, strict `mypy`, TypeScript build
 - Docker Compose configuration validation
 - GitHub Actions backend/web/compose/graph integration jobs

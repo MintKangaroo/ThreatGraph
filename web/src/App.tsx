@@ -59,16 +59,24 @@ function timeRangeLabel(hours: number): string {
 }
 
 export default function App() {
+  const initialParams = useMemo(
+    () => new URLSearchParams(window.location.search),
+    [],
+  );
   const [apiState, setApiState] = useState<ApiState>("checking");
   const [graphNodes, setGraphNodes] = useState(DEMO_NODES);
   const [graphEdges, setGraphEdges] = useState(DEMO_EDGES);
   const [totalEntityCount, setTotalEntityCount] = useState(2847);
   const [dataMode, setDataMode] = useState<"demo" | "live">("demo");
-  const [selectedId, setSelectedId] = useState("incident-1042");
+  const [selectedId, setSelectedId] = useState(
+    initialParams.get("entity") ?? "incident-1042",
+  );
   const [entityFilter, setEntityFilter] = useState<EntityFilter>("All");
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
-  const [criticalOnly, setCriticalOnly] = useState(false);
+  const [criticalOnly, setCriticalOnly] = useState(
+    initialParams.get("view") === "critical",
+  );
   const [timeRange, setTimeRange] = useState(24);
   const [zoom, setZoom] = useState(1);
   const [toast, setToast] = useState("");
@@ -77,8 +85,7 @@ export default function App() {
   useEffect(() => {
     const controller = new AbortController();
     const workspaceId =
-      new URLSearchParams(window.location.search).get("workspace") ??
-      import.meta.env.VITE_WORKSPACE_ID;
+      initialParams.get("workspace") ?? import.meta.env.VITE_WORKSPACE_ID;
     void checkApi(controller.signal).then(async (available) => {
       if (!controller.signal.aborted) {
         setApiState(available ? "available" : "unavailable");
@@ -99,7 +106,7 @@ export default function App() {
       }
     });
     return () => controller.abort();
-  }, []);
+  }, [initialParams]);
 
   useEffect(
     () => () => {
