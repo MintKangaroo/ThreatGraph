@@ -140,7 +140,11 @@ def test_mapper_helpers_and_store_versioning() -> None:
         EntityType.IP_ADDRESS,
         "192.0.2.1",
     )
-    assert _indicator_type_and_value("[file:hashes.'SHA-256' = 'abc']")[0] == EntityType.HASH
+    assert _indicator_type_and_value(
+        "[file:hashes.'SHA-256' = '" + "a" * 64 + "']"
+    )[0] == EntityType.HASH
+    assert _indicator_type_and_value("[file:hashes.'SHA-256' = 'abc']") == (None, None)
+    assert _indicator_type_and_value("[domain-name:value = 'localhost']") == (None, None)
     assert _indicator_type_and_value("[email-addr:value = 'a@example.com']") == (None, None)
     assert _confidence(type("Object", (), {"confidence": 200})()) == 1.0
     assert _confidence(type("Object", (), {"confidence": -10})()) == 0.0

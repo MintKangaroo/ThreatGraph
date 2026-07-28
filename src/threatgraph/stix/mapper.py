@@ -14,6 +14,7 @@ from threatgraph.graph.models import (
     RelationshipCreate,
     RelationshipType,
 )
+from threatgraph.ioc.normalization import IOCNormalizationError, normalize_ioc
 
 STIX_ID_PATTERN = re.compile(r"^[a-z0-9-]+--[0-9a-f-]{36}$")
 VALUE_PATTERN = re.compile(
@@ -88,11 +89,17 @@ def object_to_entity(workspace_id: UUID, obj: Any) -> EntityCreate | None:
     if entity_type is None:
         return None
     properties = _safe_properties(obj)
+    canonical_id = graph_id(object_id)
+    entity_key = f"stix:{object_id}"
+    if object_type == "indicator" and key_value:
+        canonical = normalize_ioc(entity_type, key_value)
+        canonical_id = canonical.graph_id
+        entity_key = canonical.identity_key
     return EntityCreate(
-        id=graph_id(object_id),
+        id=canonical_id,
         workspace_id=workspace_id,
         entity_type=entity_type,
-        key=f"stix:{object_id}",
+        key=entity_key,
         name=_string_value(getattr(obj, "name", None)),
         sensitive=False,
         properties={**properties, **({"observable_value": key_value} if key_value else {})},
@@ -177,13 +184,23 @@ def evidence_for_relationship(workspace_id: UUID, obj: Any) -> EntityCreate:
 def _indicator_type_and_value(pattern: str) -> tuple[EntityType | None, str | None]:
     hash_match = HASH_PATTERN.fullmatch(pattern)
     if hash_match:
-        return EntityType.HASH, _unescape(hash_match.group("value"))
+        raw_value = _unescape(hash_match.group("value"))
+        try:
+            normalized = normalize_ioc(EntityType.HASH, raw_value)
+        except IOCNormalizationError:
+            return None, None
+        return normalized.entity_type, normalized.canonical_value
     value_match = VALUE_PATTERN.fullmatch(pattern)
     if value_match:
         object_type = value_match.group("object").lower()
         entity_type = DIRECT_ENTITY_TYPES.get(object_type)
         if entity_type in {EntityType.DOMAIN, EntityType.IP_ADDRESS, EntityType.URL}:
-            return entity_type, _unescape(value_match.group("value"))
+            raw_value = _unescape(value_match.group("value"))
+            try:
+                normalized = normalize_ioc(entity_type, raw_value)
+            except IOCNormalizationError:
+                return None, None
+            return normalized.entity_type, normalized.canonical_value
     return None, None
 
 

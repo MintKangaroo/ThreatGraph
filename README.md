@@ -16,8 +16,8 @@ ThreatGraph는 AI-SOC Dashboard, AutoPentest AI, SentinelFlow가 공통으로 �
 IOC, 취약점, 위협 행위자, MITRE ATT&CK 기법(Technique)을 연결하고 상관분석하는 위협
 인텔리전스 플랫폼을 목표로 합니다.
 
-> 현재 상태: STIX 2.1 번들 수집·보존·내보내기 계층까지 구현되었습니다. 다음 단계는 IOC
-> 정규화 및 중복 제거입니다.
+> 현재 상태: STIX 2.1 수집과 IOC 정규화·중복 제거·마스킹까지 구현되었습니다. 다음 단계는
+> MITRE ATT&CK 지식 매핑입니다.
 
 ## 목차
 
@@ -63,7 +63,7 @@ Technique를 연결하여 시간 기반 상관분석과 설명 가능한 탐색�
 | 플랫폼 기반 | 완료 | FastAPI, PostgreSQL, Neo4j, Redis/Celery, React, Docker Compose |
 | 그래프 계층 | 완료 | 타입 모델, workspace 격리, Evidence 검증, idempotent upsert |
 | STIX 2.1 | 완료 | Bundle import/export, 원본 보존, 지원 객체 매핑, TAXII 입력 경계 |
-| IOC 파이프라인 | 예정 | canonical identity, 중복 제거, 민감 값 마스킹 |
+| IOC 파이프라인 | 완료 | canonical identity, 중복 제거, 선택적 민감 값 마스킹 |
 | 상관분석·Query API | 예정 | 시간 창, 공통 IOC/자산/사용자, pagination 기반 탐색 |
 | 시각화·AI 설명 | 예정 | Cytoscape.js 탐색기, Evidence 패널, 근거 기반 narrative |
 

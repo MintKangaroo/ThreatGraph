@@ -6,8 +6,8 @@
    indexes, idempotent upserts, and workspace isolation.
 3. **STIX 2.1 (complete):** bundle import/export, workspace-scoped preservation, supported object
    mapping, relationship evidence, and TAXII adapter boundary.
-4. **IOC pipeline (next):** normalization, stable identity keys, deduplication, and optional masking.
-5. **MITRE ATT&CK:** knowledge import and technique mapping, including Sigma mapping adapters.
+4. **IOC pipeline (complete):** normalization, stable identity keys, deduplication, and optional masking.
+5. **MITRE ATT&CK (next):** knowledge import and technique mapping, including Sigma mapping adapters.
 6. **Correlation:** time windows, common IOC/asset/identity, and technique-chain correlation.
 7. **Graph query API:** neighborhood, shortest path, time range, and incident subgraph queries with
    pagination and limits.
