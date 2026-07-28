@@ -126,6 +126,7 @@ services:
       target: development
     environment:
       VITE_API_PROXY_TARGET: http://api:8000
+      VITE_WORKSPACE_ID: ${VITE_WORKSPACE_ID:-}
     ports:
       - "127.0.0.1:${WEB_PORT:-5173}:5173"
     depends_on:

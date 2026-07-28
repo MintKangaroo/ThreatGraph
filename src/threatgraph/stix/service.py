@@ -8,7 +8,7 @@ from uuid import UUID
 
 from stix2 import Bundle, parse
 
-from threatgraph.graph.repository import GraphRepository
+from threatgraph.graph.repository import GraphWriteRepository
 from threatgraph.stix.mapper import (
     UnsupportedSTIXObject,
     evidence_for_relationship,
@@ -49,7 +49,7 @@ class STIXBundleImporter:
 
     def __init__(
         self,
-        repository: GraphRepository,
+        repository: GraphWriteRepository,
         store: STIXObjectStore | None = None,
         max_objects: int = 10_000,
     ) -> None:
@@ -92,9 +92,7 @@ class STIXBundleImporter:
         relationship_count = 0
         for obj in objects:
             try:
-                relationship = object_to_relationship(
-                    workspace_id, obj, entity_ids, entity_types
-                )
+                relationship = object_to_relationship(workspace_id, obj, entity_ids, entity_types)
             except UnsupportedSTIXObject as error:  # pragma: no cover - parser validates IDs
                 skipped.append(_skipped(obj, str(error)))
                 continue

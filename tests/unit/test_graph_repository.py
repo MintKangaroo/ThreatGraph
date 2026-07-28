@@ -12,6 +12,7 @@ from threatgraph.graph.models import (
     EntityCreate,
     EntityType,
     GraphEntity,
+    GraphPage,
     GraphRelationship,
     RelationshipCreate,
     RelationshipType,
@@ -205,6 +206,71 @@ def test_entity_lookup_is_workspace_scoped_and_can_return_none() -> None:
     missing_driver = FakeDriver([None])
     missing_repository = Neo4jGraphRepository(cast(AsyncDriver, missing_driver))
     assert asyncio.run(missing_repository.get_entity(WORKSPACE_ID, ENTITY_ID)) is None
+
+
+def test_subgraph_query_is_bounded_workspace_scoped_and_deserialized() -> None:
+    driver = FakeDriver(
+        [
+            {
+                "nodes": [stored_entity()],
+                "relationships": [stored_relationship()],
+                "total_nodes": 3,
+            }
+        ]
+    )
+    repository = Neo4jGraphRepository(cast(AsyncDriver, driver))
+
+    page = asyncio.run(repository.get_subgraph(WORKSPACE_ID, limit=1, offset=1))
+
+    query, parameters = driver.session_instance.transaction.calls[0]
+    assert isinstance(page, GraphPage)
+    assert page.nodes[0].id == ENTITY_ID
+    assert page.relationships[0].id == RELATIONSHIP_ID
+    assert page.total_nodes == 3
+    assert page.next_offset == 2
+    assert "workspace_id: $workspace_id" in query
+    assert "all_entities[$offset..$page_end]" in query
+    assert parameters == {
+        "workspace_id": str(WORKSPACE_ID),
+        "limit": 1,
+        "offset": 1,
+        "page_end": 2,
+    }
+
+
+@pytest.mark.parametrize(
+    ("limit", "offset"),
+    [(0, 0), (201, 0), (10, -1)],
+)
+def test_subgraph_query_rejects_unbounded_pagination(limit: int, offset: int) -> None:
+    repository = Neo4jGraphRepository(cast(AsyncDriver, FakeDriver()))
+
+    with pytest.raises(ValueError):
+        asyncio.run(repository.get_subgraph(WORKSPACE_ID, limit=limit, offset=offset))
+
+
+def test_subgraph_query_rejects_missing_or_invalid_neo4j_results() -> None:
+    missing_repository = Neo4jGraphRepository(cast(AsyncDriver, FakeDriver([None])))
+    with pytest.raises(GraphIntegrityError, match="subgraph result"):
+        asyncio.run(missing_repository.get_subgraph(WORKSPACE_ID))
+
+    invalid_repository = Neo4jGraphRepository(
+        cast(
+            AsyncDriver,
+            FakeDriver([{"nodes": "invalid", "relationships": [], "total_nodes": 0}]),
+        )
+    )
+    with pytest.raises(GraphIntegrityError, match="invalid subgraph"):
+        asyncio.run(invalid_repository.get_subgraph(WORKSPACE_ID))
+
+
+def test_subgraph_next_offset_is_none_on_the_last_page() -> None:
+    driver = FakeDriver([{"nodes": [stored_entity()], "relationships": [], "total_nodes": 1}])
+    repository = Neo4jGraphRepository(cast(AsyncDriver, driver))
+
+    page = asyncio.run(repository.get_subgraph(WORKSPACE_ID))
+
+    assert page.next_offset is None
 
 
 def test_entity_upsert_rejects_missing_or_invalid_neo4j_results() -> None:

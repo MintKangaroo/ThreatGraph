@@ -4,9 +4,13 @@
 
 완료: Graph schema/repository, STIX 2.1 importer/exporter, workspace별 원본 보존, Indicator
 매핑, 관계별 Evidence, TAXII 비동기 입력 경계, IOC canonical identity·중복 제거·민감 값
-마스킹. 세부사항은 [docs/stix.md](docs/stix.md)를 참고합니다.
+마스킹, bounded Graph Query API, API 응답 민감 엔터티 마스킹, React 관계 그래프 대시보드,
+검색·필터·타임라인·Evidence 패널·JSON export, 실제 workspace와 데모 데이터 전환.
+세부사항은 [README.md](README.md), [docs/stix.md](docs/stix.md),
+[docs/api.md](docs/api.md)를 참고합니다.
 
-검증: Python 3.12 Docker 환경에서 ruff, mypy, pytest 43개, 커버리지 100% 통과.
+검증: Python 3.12 Docker 환경에서 ruff, mypy, pytest 63개, 커버리지 100% 통과.
+웹 Vitest 6개와 TypeScript/Vite production build, Docker Compose config가 통과합니다.
 
 다음 세션은 `develop`에서 `feat/attack-mapping`을 만들고 MITRE ATT&CK STIX 지식 import,
 Technique identity, STIX relationship/Sigma 매핑을 구현합니다. 커밋은

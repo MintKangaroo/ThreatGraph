@@ -7,8 +7,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from threatgraph import __version__
+from threatgraph.api.routes.graph import router as graph_router
 from threatgraph.api.routes.health import router as health_router
 from threatgraph.config import Settings, get_settings
+from threatgraph.graph.repository import GraphQueryRepository, Neo4jGraphRepository
 from threatgraph.infrastructure import Infrastructure
 from threatgraph.infrastructure.health import InfrastructureReadinessChecker, ReadinessChecker
 
@@ -19,6 +21,7 @@ def create_app(
     settings: Settings | None = None,
     readiness_checker: ReadinessChecker | None = None,
     infrastructure_factory: InfrastructureFactory = Infrastructure.from_settings,
+    graph_repository: GraphQueryRepository | None = None,
 ) -> FastAPI:
     """Build an API instance with injectable infrastructure for deterministic tests."""
 
@@ -34,7 +37,14 @@ def create_app(
                 infrastructure,
                 resolved_settings.health_check_timeout_seconds,
             )
+        repository = graph_repository
+        if repository is None and infrastructure is not None:
+            repository = Neo4jGraphRepository(
+                infrastructure.neo4j,
+                resolved_settings.neo4j_database,
+            )
         application.state.readiness_checker = checker
+        application.state.graph_repository = repository
         yield
         if infrastructure is not None:
             await infrastructure.close()
@@ -52,6 +62,7 @@ def create_app(
         allow_headers=["*"],
     )
     api.include_router(health_router, prefix=resolved_settings.api_prefix)
+    api.include_router(graph_router, prefix=resolved_settings.api_prefix)
     return api
 
 

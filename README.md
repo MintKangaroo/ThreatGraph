@@ -1,136 +1,150 @@
+<div align="center">
+
 # ThreatGraph
 
+### Evidence-first Threat Intelligence Graph Platform
+
+보안 이벤트와 IOC를 하나의 그래프로 연결하고, 모든 관계를 검증 가능한 Evidence로 설명합니다.
+
+[![CI](https://github.com/MintKangaroo/ThreatGraph/actions/workflows/ci.yml/badge.svg)](https://github.com/MintKangaroo/ThreatGraph/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-19-20232A?logo=react&logoColor=61DAFB)](https://react.dev/)
+[![Neo4j](https://img.shields.io/badge/Neo4j-5.26-018BFF?logo=neo4j&logoColor=white)](https://neo4j.com/)
+[![STIX](https://img.shields.io/badge/STIX-2.1-6C63FF)](https://oasis-open.github.io/cti-documentation/)
+[![Coverage](https://img.shields.io/badge/coverage-100%25-52E2BC)](#품질-검증)
+[![License](https://img.shields.io/github/license/MintKangaroo/ThreatGraph?color=52E2BC)](LICENSE)
+
+</div>
+
 <p align="center">
-  <img src="docs/assets/threatgraph-dashboard.svg" alt="ThreatGraph 대시보드 미리보기" width="900" />
+  <img src="docs/assets/threatgraph-dashboard.png" alt="ThreatGraph 관계 그래프 대시보드" width="100%" />
 </p>
 
-<p align="center">보안 이벤트와 IOC를 증거 기반 그래프로 연결하는 Threat Intelligence 플랫폼</p>
+> [!NOTE]
+> 대시보드는 별도 데이터 없이도 데모 그래프로 즉시 실행됩니다. 워크스페이스 UUID를
+> 설정하면 동일한 화면이 workspace-scoped Graph API를 통해 Neo4j 데이터를 조회합니다.
 
-<p align="center">
-  <a href="https://github.com/MintKangaroo/ThreatGraph"><img src="https://img.shields.io/github/license/MintKangaroo/ThreatGraph" alt="라이선스" /></a>
-  <a href="https://github.com/MintKangaroo/ThreatGraph/tree/develop"><img src="https://img.shields.io/badge/브랜치-develop-2563eb" alt="develop 브랜치" /></a>
-</p>
+## ThreatGraph가 해결하는 문제
 
-ThreatGraph는 AI-SOC Dashboard, AutoPentest AI, SentinelFlow가 공통으로 사용하는 그래프
-분석 계층입니다. 증거를 보존하고 워크스페이스 간 데이터를 격리하면서 자산, 이벤트,
-IOC, 취약점, 위협 행위자, MITRE ATT&CK 기법(Technique)을 연결하고 상관분석하는 위협
-인텔리전스 플랫폼을 목표로 합니다.
+SIEM, EDR, CTI 피드에 흩어진 관측값만으로는 공격의 전체 흐름과 판단 근거를 빠르게
+설명하기 어렵습니다. ThreatGraph는 자산, 사용자, IOC, 악성코드, 인시던트, ATT&CK
+Technique를 하나의 그래프로 정규화하고, 관계마다 Evidence와 신뢰도·관측 시간을
+필수로 기록합니다.
 
-> 현재 상태: STIX 2.1 수집과 IOC 정규화·중복 제거·마스킹까지 구현되었습니다. 다음 단계는
-> MITRE ATT&CK 지식 매핑입니다.
+| Correlate | Investigate | Explain | Isolate |
+| --- | --- | --- | --- |
+| STIX 객체와 IOC를 결정적 identity로 중복 제거 | 검색·필터·시간 범위로 공격 경로 탐색 | 모든 edge에 출처와 Evidence 연결 | 모든 저장·조회가 `workspace_id`로 제한 |
 
-## 목차
+```text
+Security events / STIX / TAXII
+              │
+              ▼
+    Normalize & deduplicate IOC
+              │
+              ▼
+  Evidence-backed threat graph
+              │
+              ├── Workspace Graph API
+              ├── Interactive Dashboard
+              └── Grounded investigation context
+```
 
-- [프로젝트 개요](#프로젝트-개요)
-- [현재 구현 범위](#현재-구현-범위)
-- [아키텍처](#아키텍처)
-- [빠른 시작](#빠른-시작)
-- [STIX 2.1 수집](#stix-21-수집)
-- [그래프 모델](#그래프-모델)
-- [품질과 보안 원칙](#품질과-보안-원칙)
-- [로드맵](#로드맵)
+## 주요 기능
 
-## 프로젝트 개요
+### Interactive investigation dashboard
 
-ThreatGraph는 서로 다른 보안 데이터 소스를 하나의 workspace-scoped 그래프로 통합합니다.
-수집된 이벤트에서 IOC를 추출하고, 엔터티를 정규화한 뒤, 관계·Evidence·MITRE ATT&CK
-Technique를 연결하여 시간 기반 상관분석과 설명 가능한 탐색을 제공합니다.
+- 인시던트, 자산, IOC, 위협 행위자, ATT&CK Technique 관계 시각화
+- 전역 엔터티 검색과 유형별 필터
+- Critical path 강조와 1–72시간 관측 범위 조절
+- 노드 선택에 따라 갱신되는 속성·관계·Evidence 패널
+- 확대·축소·초기화 및 현재 subgraph JSON 내보내기
+- API 상태 표시, 오프라인 데모 fallback, 반응형 레이아웃
+- `VITE_WORKSPACE_ID` 또는 `?workspace=<UUID>`를 통한 실제 워크스페이스 조회
 
-핵심 흐름은 다음과 같습니다.
+### Evidence-first graph core
 
-`보안 이벤트 수집 → IOC 추출 → 엔터티 정규화 → 관계 생성 → ATT&CK 매핑 → 시간 기반 상관분석 → 그래프 탐색 → 근거 기반 설명`
+- 17개 위협 인텔리전스 엔터티와 13개 관계 타입
+- `(workspace_id, entity_type, key)` 기반 idempotent entity upsert
+- 같은 workspace에 속한 source, target, Evidence가 있을 때만 관계 생성
+- 호출자 속성이 identity, workspace, evidence, time 필드를 덮어쓰지 못하도록 검증
+- Neo4j constraint/index 30개를 idempotent하게 초기화
 
-## 기반 서비스
+### STIX 2.1 & IOC pipeline
 
-- 생존 상태(liveness) 및 종속 서비스 준비 상태(readiness) 엔드포인트를 제공하는
-  FastAPI 서비스
-- 메타데이터 저장소인 PostgreSQL과 그래프 저장소인 Neo4j
-- 17개 위협 인텔리전스 엔터티와 13개 Evidence 기반 관계 스키마
-- workspace 격리와 idempotent entity upsert를 적용한 Neo4j Repository
-- STIX 2.1 bundle importer/exporter와 TAXII 입력 경계
-- Redis 기반 Celery 워커 실행 환경
-- React 및 Vite 기반 웹 기본 화면
-- 영구 서비스 볼륨을 포함한 Docker Compose 개발 환경
-- Python 및 웹 품질 검사를 수행하는 CI
+- STIX 2.1 Bundle 검증, 원본 보존, import/export
+- Domain, IPv4/IPv6, URL, SHA 계열 Indicator pattern 매핑
+- TAXII 비동기 입력 경계와 최대 객체 수 제한
+- IP, domain, URL, hash canonicalization과 안정적인 identity
+- 중복 제거 및 선택적 민감 IOC 마스킹
 
-## 현재 구현 범위
+### Platform foundation
 
-현재 `main`과 `develop`에는 플랫폼 기반 및 그래프 스키마가 포함되어 있으며,
-`feat/stix-ingestion`에는 STIX 2.1 수집 계층이 추가되어 있습니다.
+- FastAPI liveness/readiness 및 workspace Graph Query API
+- PostgreSQL metadata store, Neo4j graph store, Redis/Celery runtime
+- Docker Compose 서비스 의존성·healthcheck·영구 볼륨
+- Python strict typing, 100% backend coverage, React interaction tests
 
-| 영역 | 상태 | 내용 |
-| --- | --- | --- |
-| 플랫폼 기반 | 완료 | FastAPI, PostgreSQL, Neo4j, Redis/Celery, React, Docker Compose |
-| 그래프 계층 | 완료 | 타입 모델, workspace 격리, Evidence 검증, idempotent upsert |
-| STIX 2.1 | 완료 | Bundle import/export, 원본 보존, 지원 객체 매핑, TAXII 입력 경계 |
-| IOC 파이프라인 | 완료 | canonical identity, 중복 제거, 선택적 민감 값 마스킹 |
-| 상관분석·Query API | 예정 | 시간 창, 공통 IOC/자산/사용자, pagination 기반 탐색 |
-| 시각화·AI 설명 | 예정 | Cytoscape.js 탐색기, Evidence 패널, 근거 기반 narrative |
+## 현재 구현 상태
+
+| 영역 | 상태 | 구현 내용 |
+| --- | :---: | --- |
+| Platform foundation | ✅ | FastAPI, PostgreSQL, Neo4j, Redis/Celery, React, Compose |
+| Graph schema & repository | ✅ | Typed model, Evidence edge, workspace isolation, idempotent upsert |
+| STIX 2.1 ingestion | ✅ | Bundle import/export, object mapping, TAXII boundary, raw preservation |
+| IOC normalization | ✅ | Canonical identity, deduplication, optional masking |
+| Graph Query API | ✅ | Bounded workspace subgraph, limit/offset, sensitive entity masking |
+| Investigation dashboard | ✅ | Search, filters, timeline, details, evidence, export, live/demo mode |
+| ATT&CK knowledge ingestion | 🧭 | 공식 지식 베이스 import와 자동 Technique mapping |
+| Correlation engine | 🧭 | 시간 창, 공통 IOC/asset/identity, technique chain |
+| Grounded narratives | 🧭 | Evidence 인용 기반 인시던트 설명 |
+
+> 대시보드의 기본 시나리오는 UI 기능을 바로 확인하기 위한 데모 데이터입니다.
+> 실제 그래프 조회 경계와 민감 데이터 마스킹은 백엔드 API에 구현되어 있습니다.
 
 ## 빠른 시작
 
-전체 로컬 환경은 Docker Compose를 사용해 실행합니다.
+### Docker Compose
+
+필요 환경: Docker Engine과 Docker Compose v2
 
 ```bash
+git clone https://github.com/MintKangaroo/ThreatGraph.git
+cd ThreatGraph
 cp .env.example .env
 docker compose up --build
 ```
 
-`graph-init` 서비스가 API와 worker보다 먼저 Neo4j constraint 및 index를 idempotent하게
-설치합니다. 로컬 Python 환경에서는 `make graph-schema`로 같은 작업을 직접 실행할 수
-있습니다.
+| Service | URL | 역할 |
+| --- | --- | --- |
+| Dashboard | <http://localhost:5173> | 그래프 탐색과 Evidence 확인 |
+| API / OpenAPI | <http://localhost:8000/docs> | 상태·그래프 API |
+| Neo4j Browser | <http://localhost:7474> | 로컬 그래프 관리 |
 
-서비스가 시작되면 다음 주소로 접속할 수 있습니다.
+`graph-init`이 API와 worker 시작 전에 constraint와 index를 설치합니다. 서비스는
+`docker compose down`으로 종료합니다. 로컬 데이터까지 삭제해야 할 때만
+`docker compose down --volumes`를 사용하십시오.
 
-- 웹 화면: <http://localhost:5173>
-- API 문서: <http://localhost:8000/docs>
-- Neo4j Browser: <http://localhost:7474>
+### 실제 워크스페이스 연결
 
-개발 데이터는 이름이 지정된 Docker 볼륨에 저장됩니다. 서비스는
-`docker compose down`으로 종료할 수 있습니다. 로컬 데이터까지 삭제하려는 경우에만
-`--volumes` 옵션을 추가하십시오.
+`.env`에 조회할 UUID를 지정하고 web 서비스를 다시 시작합니다.
 
-`.env.example`의 인증 정보는 격리된 로컬 개발 환경 전용입니다. 공유 환경이나 개발
-이외의 환경에서는 모든 비밀번호를 반드시 교체해야 합니다. 기본적으로 인프라 포트는
-루프백 인터페이스에만 바인딩됩니다.
-
-## 아키텍처
-
-```text
-React/Vite
-    │ HTTP
-FastAPI ───────── PostgreSQL (metadata)
-    │
-    ├──────────── Neo4j (entities, relationships, Evidence)
-    ├──────────── Redis → Celery worker (비동기 작업)
-    └──────────── STIX/TAXII adapters
+```dotenv
+VITE_WORKSPACE_ID=00000000-0000-4000-8000-000000000001
 ```
 
-PostgreSQL은 workspace, 작업 및 연동 메타데이터를 저장하고 Neo4j는 위협 그래프와
-Evidence-backed relationship을 저장합니다. 모든 그래프 읽기·쓰기는 `workspace_id`로
-범위를 제한합니다. 상세 설계는 [아키텍처 문서](docs/architecture.md)를 참고하십시오.
+일회성으로 확인하려면 다음 URL도 사용할 수 있습니다.
 
-## STIX 2.1 수집
+```text
+http://localhost:5173/?workspace=00000000-0000-4000-8000-000000000001
+```
 
-STIX bundle은 `STIXBundleImporter`로 검증·매핑하고, `STIXBundleExporter`로 원본 객체를
-다시 bundle로 내보낼 수 있습니다. 지원 Indicator 패턴은 domain, IPv4/IPv6, URL, file
-hash이며, 지원되지 않는 객체는 `IngestReport.skipped`에 남기고 전체 수집은 계속합니다.
-관계가 생성될 때는 같은 workspace의 Evidence가 함께 생성됩니다.
+워크스페이스에 노드가 없거나 API 조회가 실패하면 대시보드는 데모 데이터로 안전하게
+fallback합니다.
 
-구현 세부사항과 TAXII 어댑터 계약은 [STIX 문서](docs/stix.md)에 정리되어 있습니다.
+### 로컬 개발
 
-## 상태 확인 엔드포인트
-
-- `GET /api/v1/health/live`: API 프로세스가 요청을 처리할 수 있는지 확인합니다.
-- `GET /api/v1/health/ready`: 제한 시간 안에 PostgreSQL, Neo4j, Redis 연결 상태를
-  확인합니다.
-
-준비 상태 검사에 실패하면 구성요소별 `up` 또는 `down` 상태만 반환합니다. 연결 정보와
-내부 오류는 외부에 노출하지 않습니다.
-
-## 로컬 품질 검사
-
-컨테이너 외부에서 개발하려면 Python 3.12와 Node.js 20 이상이 필요합니다.
+필요 환경: Python 3.12+, Node.js 20+
 
 ```bash
 python3.12 -m venv .venv
@@ -139,62 +153,150 @@ make install web-install
 make check
 ```
 
-Python 테스트만 실행하려면 `make test`, 웹 테스트만 실행하려면 `make web-test`를
-사용합니다.
+```bash
+make dev          # 전체 스택
+make test         # Python tests
+make web-test     # React tests
+make web-build    # production web build
+make graph-schema # Neo4j schema only
+```
 
-## 그래프 스키마
+## API
 
-모든 entity는 `workspace_id`와 type별 identity key로 식별됩니다. 동일 workspace에서
-동일한 identity key를 다시 저장하면 새 node를 무제한 생성하지 않고 기존 node를
-갱신합니다.
+기본 prefix는 `/api/v1`입니다.
 
-모든 relationship은 다음 속성을 필수로 가집니다.
+| Method | Endpoint | 설명 |
+| --- | --- | --- |
+| `GET` | `/health/live` | API process liveness |
+| `GET` | `/health/ready` | PostgreSQL, Neo4j, Redis readiness |
+| `GET` | `/workspaces/{workspace_id}/graph` | workspace subgraph 조회 |
 
-- `source`
-- `first_seen`, `last_seen`
-- `confidence`
-- `evidence_id`
-- `workspace_id`
+Graph API는 `limit=1..200`, `offset>=0`을 강제하고 다음 offset을 응답합니다.
+`sensitive=true` 엔터티의 key, name, properties는 API 경계에서 마스킹됩니다.
 
-Repository는 source entity, target entity, Evidence가 모두 같은 workspace에 있을 때만
-relationship을 생성합니다. 지원하는 전체 schema와 저장 규칙은
-[그래프 스키마 문서](docs/graph-schema.md)를 참고하십시오.
+```bash
+curl "http://localhost:8000/api/v1/workspaces/\
+00000000-0000-4000-8000-000000000001/graph?limit=100&offset=0"
+```
+
+```json
+{
+  "nodes": [],
+  "relationships": [],
+  "total_nodes": 0,
+  "limit": 100,
+  "offset": 0,
+  "next_offset": null
+}
+```
+
+세부 응답과 보안 동작은 [API 문서](docs/api.md)를 참고하십시오.
 
 ## 그래프 모델
 
-주요 엔터티는 Asset, Identity, Process, File, Domain, IPAddress, URL, Hash, Vulnerability,
-Alert, Incident, ThreatActor, Malware, Campaign, AttackTechnique, DataSource, Evidence입니다.
-관계에는 communicates_with, resolves_to, downloaded, executed, observed_on, authenticated_to,
-exploited, related_to, attributed_to, uses_technique, affected_by, mitigated_by,
-part_of_incident가 있습니다.
+```mermaid
+flowchart LR
+    A[Asset] -->|observed_on| I[Incident]
+    U[Identity] -->|authenticated_to| A
+    F[File / Hash] -->|executed| A
+    A -->|communicates_with| IP[IP / Domain / URL]
+    I -->|uses_technique| T[ATT&CK Technique]
+    M[Malware] -->|related_to| I
+    TA[Threat Actor] -->|attributed_to| M
+    E[Evidence] -. grounds every edge .-> I
+```
 
-모든 관계는 `source`, `first_seen`, `last_seen`, `confidence`, `evidence_id`, `workspace_id`를
-필수로 가집니다. 전체 제약과 identity 규칙은 [그래프 스키마 문서](docs/graph-schema.md)를
-참고하십시오.
+모든 relationship은 다음 필드를 필수로 가집니다.
 
-## 품질과 보안 원칙
+```text
+source · first_seen · last_seen · confidence · evidence_id · workspace_id
+```
 
-- workspace 간 데이터는 저장·조회·관계 생성 단계에서 격리합니다.
-- 모든 관계는 동일 workspace의 Evidence를 요구합니다.
-- 결정적 identity와 MERGE로 동일 IOC의 무제한 중복 노드 생성을 방지합니다.
-- 그래프에 없는 관계를 AI 설명이 사실처럼 생성하지 않도록 Evidence를 근거로 사용합니다.
-- 대규모 Query API에는 limit과 pagination을 적용합니다.
-- 민감한 IOC는 정규화 단계에서 마스킹할 수 있도록 설계합니다.
+전체 entity identity와 relationship 규칙은
+[Graph Schema](docs/graph-schema.md)에 정리되어 있습니다.
 
-## 아직 구현하지 않은 범위
+## 아키텍처
 
-- IOC 정규화 파이프라인과 선택적 민감 IOC 마스킹
-- MITRE ATT&CK 및 Sigma 매핑
-- 시간 기반 이벤트 상관분석과 그래프 조회 API
-- Cytoscape.js 기반 그래프 탐색기
-- AI 기반 인시던트 설명과 외부 플랫폼 어댑터
+```mermaid
+flowchart TB
+    Web[React / Vite Dashboard] -->|REST| API[FastAPI]
+    API --> PG[(PostgreSQL)]
+    API --> Neo[(Neo4j)]
+    API --> Redis[(Redis)]
+    Worker[Celery Worker] --> Redis
+    Worker --> Neo
+    STIX[STIX / TAXII Sources] --> Worker
+    Init[graph-init] --> Neo
+```
 
-STIX 가져오기 사용법과 지원 범위는 [STIX 문서](docs/stix.md)를 참고하십시오. 대상 스캔이나 공격 행위도 구현하지 않습니다. 자세한 내용은
-[그래프 스키마](docs/graph-schema.md), [아키텍처](docs/architecture.md),
-[로드맵](docs/roadmap.md),
-[보안 정책](SECURITY.md)을 참고하십시오.
+- PostgreSQL: workspace, job, integration metadata
+- Neo4j: workspace-scoped entities, relationships, Evidence
+- Redis/Celery: 비동기 ingestion과 correlation 실행 경계
+- React/Vite: 데모 또는 실제 workspace graph를 탐색하는 운영 UI
 
-## 기여
+더 자세한 설계는 [Architecture](docs/architecture.md)와
+[Threat Model](docs/threat-model.md)을 참고하십시오.
 
-개발 및 검증 절차는 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하십시오. 이 프로젝트는
-MIT License로 배포됩니다.
+## 프로젝트 구조
+
+```text
+threatgraph/
+├── src/threatgraph/
+│   ├── api/              # FastAPI routes and lifecycle
+│   ├── graph/            # typed models, schema, Neo4j repository
+│   ├── infrastructure/   # PostgreSQL, Neo4j, Redis resources
+│   ├── ioc/              # normalization, identity, masking
+│   ├── stix/             # STIX mapping, store, TAXII boundary
+│   └── worker/           # Celery runtime
+├── web/src/              # React investigation dashboard
+├── tests/unit/           # backend unit tests
+├── docs/                 # architecture and domain documentation
+└── compose.yaml
+```
+
+## 품질 검증
+
+현재 검증 기준:
+
+- Backend: **63 tests**, **100% statement coverage**
+- Frontend: dashboard rendering, API fallback, graph selection/filter, global search
+- `ruff` lint/format, strict `mypy`, TypeScript build
+- Docker Compose configuration validation
+- GitHub Actions backend/web/compose/graph integration jobs
+
+```bash
+make check
+```
+
+## 보안 원칙
+
+- 모든 graph read/write는 `workspace_id`로 격리합니다.
+- 관계는 동일 workspace의 Evidence 없이는 생성되지 않습니다.
+- Query API는 결과 크기를 제한하고 민감 엔터티를 응답 전에 마스킹합니다.
+- readiness 오류는 내부 host, credential, stack trace를 노출하지 않습니다.
+- Compose의 기본 secret은 격리된 로컬 개발 전용입니다.
+- 승인 없는 대상 스캔이나 공격 행위는 이 프로젝트의 범위가 아닙니다.
+
+취약점 신고 절차는 [SECURITY.md](SECURITY.md)를 확인하십시오.
+
+## 문서
+
+| 문서 | 내용 |
+| --- | --- |
+| [Architecture](docs/architecture.md) | 서비스와 프로세스 경계 |
+| [Graph Schema](docs/graph-schema.md) | entity, relationship, identity 규칙 |
+| [STIX 2.1](docs/stix.md) | import/export와 지원 객체 |
+| [IOC Pipeline](docs/ioc.md) | 정규화, 중복 제거, 마스킹 |
+| [API](docs/api.md) | health 및 graph query 계약 |
+| [Threat Model](docs/threat-model.md) | trust boundary와 abuse case |
+| [Roadmap](docs/roadmap.md) | 다음 구현 단계 |
+| [Contributing](CONTRIBUTING.md) | 개발·검증·브랜치 규칙 |
+
+## 기여 및 라이선스
+
+기여 전 [CONTRIBUTING.md](CONTRIBUTING.md)의 브랜치와 검증 규칙을 확인해 주세요.
+ThreatGraph는 [MIT License](LICENSE)로 배포됩니다.
+
+<div align="center">
+  <sub>Built for explainable, evidence-grounded security operations.</sub>
+</div>

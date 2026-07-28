@@ -9,9 +9,11 @@
 4. **IOC pipeline (complete):** normalization, stable identity keys, deduplication, and optional masking.
 5. **MITRE ATT&CK (next):** knowledge import and technique mapping, including Sigma mapping adapters.
 6. **Correlation:** time windows, common IOC/asset/identity, and technique-chain correlation.
-7. **Graph query API:** neighborhood, shortest path, time range, and incident subgraph queries with
-   pagination and limits.
-8. **Visualization:** Cytoscape.js explorer, filters, expansion, time slider, and evidence panel.
+7. **Graph query API (in progress):** bounded workspace subgraph pagination and sensitive entity
+   masking are complete; neighborhood, shortest path, and time-range queries remain.
+8. **Visualization (in progress):** interactive explorer, search, filters, critical path, time
+   slider, evidence panel, JSON export, and live/demo data modes are complete; server-side graph
+   expansion remains.
 9. **Grounded narratives:** incident and ATT&CK-chain explanations with explicit missing evidence.
 10. **Platform adapters:** AI-SOC Dashboard, AutoPentest AI, and SentinelFlow integrations.
 

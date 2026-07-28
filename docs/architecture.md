@@ -14,7 +14,8 @@ coordination infrastructure, not a system of record.
 
 ## Process boundaries
 
-- `threatgraph.api` contains the HTTP application factory and routes.
+- `threatgraph.api` contains the HTTP application factory, health routes, and the bounded workspace
+  graph query route used by the dashboard.
 - `threatgraph.worker` contains the Celery application; task modules arrive with ingestion work.
 - `threatgraph.infrastructure` owns client construction, bounded readiness checks, and shutdown.
 - `threatgraph.graph.models` owns strict entity and relationship invariants without vendor code.
@@ -23,13 +24,15 @@ coordination infrastructure, not a system of record.
 - `threatgraph.stix` validates STIX 2.1 bundles, preserves source objects per workspace, maps
   supported objects and relationships, and exposes an async TAXII source boundary.
 - `threatgraph.config` is the environment-to-runtime trust boundary.
-- `web` is an independently built React application.
+- `web` is an independently built React investigation dashboard. It starts with a safe demo graph
+  and can load a configured workspace through the Graph API.
 
 Domain policy does not depend on FastAPI, SQLAlchemy, Celery, or vendor SDKs. The Neo4j repository
-depends inward on typed graph models and the `GraphRepository` protocol. Every read and mutation
-matches `workspace_id`, and relationship creation additionally matches an `Evidence` node in that
-workspace. IOC-specific normalization, masking, and query pagination remain later milestones. STIX
-imports use deterministic IDs and create an Evidence node for every imported relationship.
+depends inward on typed graph models and the write and query repository protocols. Every read and
+mutation matches `workspace_id`, and relationship creation additionally matches an `Evidence` node
+in that workspace. Graph responses are bounded and sensitive entities are masked at the HTTP
+boundary. STIX imports use deterministic IDs and create an Evidence node for every imported
+relationship.
 
 ## Security and reliability defaults
 

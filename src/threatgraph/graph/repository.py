@@ -13,6 +13,7 @@ from threatgraph.graph.models import (
     RELATIONSHIP_RESERVED_PROPERTIES,
     EntityCreate,
     GraphEntity,
+    GraphPage,
     GraphRelationship,
     RelationshipCreate,
 )
@@ -23,23 +24,39 @@ class GraphIntegrityError(RuntimeError):
     """Raised when a requested graph mutation would violate domain integrity."""
 
 
-class GraphRepository(Protocol):
-    """Storage boundary for workspace-scoped threat graphs."""
-
-    async def ensure_schema(self) -> None:
-        """Install idempotent graph constraints and indexes."""
+class GraphWriteRepository(Protocol):
+    """Minimal mutation boundary used by ingestion pipelines."""
 
     async def upsert_entity(self, entity: EntityCreate) -> GraphEntity:
         """Create or update an entity by its workspace-local identity key."""
-
-    async def get_entity(self, workspace_id: UUID, entity_id: UUID) -> GraphEntity | None:
-        """Return an entity only when it belongs to the requested workspace."""
 
     async def upsert_relationship(
         self,
         relationship: RelationshipCreate,
     ) -> GraphRelationship:
         """Create or update a relationship backed by Evidence in the same workspace."""
+
+
+class GraphRepository(GraphWriteRepository, Protocol):
+    """Full storage boundary for workspace-scoped threat graphs."""
+
+    async def ensure_schema(self) -> None:
+        """Install idempotent graph constraints and indexes."""
+
+    async def get_entity(self, workspace_id: UUID, entity_id: UUID) -> GraphEntity | None:
+        """Return an entity only when it belongs to the requested workspace."""
+
+
+class GraphQueryRepository(Protocol):
+    """Read boundary for bounded, workspace-scoped graph exploration."""
+
+    async def get_subgraph(
+        self,
+        workspace_id: UUID,
+        limit: int,
+        offset: int,
+    ) -> GraphPage:
+        """Return a bounded page of entities and relationships from one workspace."""
 
 
 class Neo4jGraphRepository:
@@ -65,6 +82,24 @@ class Neo4jGraphRepository:
         async with self._driver.session(database=self._database) as session:
             persisted = await session.execute_read(self._get_entity, workspace_id, entity_id)
         return persisted
+
+    async def get_subgraph(
+        self,
+        workspace_id: UUID,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> GraphPage:
+        if not 1 <= limit <= 200:
+            raise ValueError("limit must be between 1 and 200")
+        if offset < 0:
+            raise ValueError("offset must not be negative")
+        async with self._driver.session(database=self._database) as session:
+            return await session.execute_read(
+                self._get_subgraph,
+                workspace_id,
+                limit,
+                offset,
+            )
 
     async def upsert_relationship(
         self,
@@ -137,6 +172,65 @@ class Neo4jGraphRepository:
         )
         record = await result.single()
         return None if record is None else _deserialize_entity(record["entity"])
+
+    @staticmethod
+    async def _get_subgraph(
+        transaction: AsyncManagedTransaction,
+        workspace_id: UUID,
+        limit: int,
+        offset: int,
+    ) -> GraphPage:
+        result = await transaction.run(
+            """
+            MATCH (entity:Entity {workspace_id: $workspace_id})
+            WITH entity
+            ORDER BY entity.updated_at DESC, entity.id ASC
+            WITH collect(entity) AS all_entities
+            WITH
+                all_entities[$offset..$page_end] AS page_nodes,
+                size(all_entities) AS total_nodes
+            UNWIND CASE
+                WHEN size(page_nodes) = 0 THEN [null]
+                ELSE page_nodes
+            END AS source
+            OPTIONAL MATCH (source)-[relationship]->(target:Entity {
+                workspace_id: $workspace_id
+            })
+            WHERE target IN page_nodes
+            RETURN
+                [node IN page_nodes | properties(node)] AS nodes,
+                [
+                    item IN collect(DISTINCT relationship)
+                    WHERE item IS NOT NULL | properties(item)
+                ] AS relationships,
+                total_nodes
+            """,
+            workspace_id=str(workspace_id),
+            limit=limit,
+            offset=offset,
+            page_end=offset + limit,
+        )
+        record = await result.single()
+        if record is None:
+            raise GraphIntegrityError("Neo4j did not return a subgraph result")
+        raw_nodes = record.get("nodes")
+        raw_relationships = record.get("relationships")
+        total_nodes = record.get("total_nodes")
+        if (
+            not isinstance(raw_nodes, list)
+            or not isinstance(raw_relationships, list)
+            or not isinstance(total_nodes, int)
+        ):
+            raise GraphIntegrityError("Neo4j returned an invalid subgraph result")
+        return GraphPage(
+            nodes=[_deserialize_entity(node) for node in raw_nodes],
+            relationships=[
+                _deserialize_relationship(relationship) for relationship in raw_relationships
+            ],
+            total_nodes=total_nodes,
+            limit=limit,
+            offset=offset,
+        )
 
     @staticmethod
     async def _upsert_relationship(
