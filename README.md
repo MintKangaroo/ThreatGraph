@@ -5,8 +5,8 @@ ThreatGraph는 AI-SOC Dashboard, AutoPentest AI, SentinelFlow가 공통으로 �
 IOC, 취약점, 위협 행위자, MITRE ATT&CK 기법(Technique)을 연결하고 상관분석하는 위협
 인텔리전스 플랫폼을 목표로 합니다.
 
-> 현재 상태: Graph Schema 및 Repository 계층 구축 단계입니다. STIX 데이터 수집,
-> 상관분석, 시각화, AI 설명 기능은 각각의 후속 단계에서 구현합니다.
+> 현재 상태: STIX 2.1 번들 수집·보존·내보내기 계층까지 구현되었습니다. 다음 단계는 IOC
+> 정규화 및 중복 제거입니다.
 
 ## 기반 서비스
 
@@ -15,6 +15,7 @@ IOC, 취약점, 위협 행위자, MITRE ATT&CK 기법(Technique)을 연결하고
 - 메타데이터 저장소인 PostgreSQL과 그래프 저장소인 Neo4j
 - 17개 위협 인텔리전스 엔터티와 13개 Evidence 기반 관계 스키마
 - workspace 격리와 idempotent entity upsert를 적용한 Neo4j Repository
+- STIX 2.1 bundle importer/exporter와 TAXII 입력 경계
 - Redis 기반 Celery 워커 실행 환경
 - React 및 Vite 기반 웹 기본 화면
 - 영구 서비스 볼륨을 포함한 Docker Compose 개발 환경
@@ -92,13 +93,13 @@ relationship을 생성합니다. 지원하는 전체 schema와 저장 규칙은
 
 현재 단계에는 다음 기능이 포함되지 않습니다.
 
-- STIX/TAXII 가져오기 기능과 IOC 정규화 파이프라인
+- IOC 정규화 파이프라인과 선택적 민감 IOC 마스킹
 - MITRE ATT&CK 및 Sigma 매핑
 - 시간 기반 이벤트 상관분석과 그래프 조회 API
 - Cytoscape.js 기반 그래프 탐색기
 - AI 기반 인시던트 설명과 외부 플랫폼 어댑터
 
-대상 스캔이나 공격 행위도 구현하지 않습니다. 자세한 내용은
+STIX 가져오기 사용법과 지원 범위는 [STIX 문서](docs/stix.md)를 참고하십시오. 대상 스캔이나 공격 행위도 구현하지 않습니다. 자세한 내용은
 [그래프 스키마](docs/graph-schema.md), [아키텍처](docs/architecture.md),
 [로드맵](docs/roadmap.md),
 [보안 정책](SECURITY.md)을 참고하십시오.

@@ -20,13 +20,16 @@ coordination infrastructure, not a system of record.
 - `threatgraph.graph.models` owns strict entity and relationship invariants without vendor code.
 - `threatgraph.graph.repository` defines the storage protocol and its Neo4j implementation.
 - `threatgraph.graph.schema` contains idempotent constraints and query-supporting indexes.
+- `threatgraph.stix` validates STIX 2.1 bundles, preserves source objects per workspace, maps
+  supported objects and relationships, and exposes an async TAXII source boundary.
 - `threatgraph.config` is the environment-to-runtime trust boundary.
 - `web` is an independently built React application.
 
 Domain policy does not depend on FastAPI, SQLAlchemy, Celery, or vendor SDKs. The Neo4j repository
 depends inward on typed graph models and the `GraphRepository` protocol. Every read and mutation
 matches `workspace_id`, and relationship creation additionally matches an `Evidence` node in that
-workspace. IOC-specific normalization, masking, and query pagination remain later milestones.
+workspace. IOC-specific normalization, masking, and query pagination remain later milestones. STIX
+imports use deterministic IDs and create an Evidence node for every imported relationship.
 
 ## Security and reliability defaults
 
