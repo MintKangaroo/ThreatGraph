@@ -1,5 +1,16 @@
 # ThreatGraph
 
+<p align="center">
+  <img src="docs/assets/threatgraph-dashboard.svg" alt="ThreatGraph 대시보드 미리보기" width="900" />
+</p>
+
+<p align="center">보안 이벤트와 IOC를 증거 기반 그래프로 연결하는 Threat Intelligence 플랫폼</p>
+
+<p align="center">
+  <a href="https://github.com/MintKangaroo/ThreatGraph"><img src="https://img.shields.io/github/license/MintKangaroo/ThreatGraph" alt="라이선스" /></a>
+  <a href="https://github.com/MintKangaroo/ThreatGraph/tree/develop"><img src="https://img.shields.io/badge/브랜치-develop-2563eb" alt="develop 브랜치" /></a>
+</p>
+
 ThreatGraph는 AI-SOC Dashboard, AutoPentest AI, SentinelFlow가 공통으로 사용하는 그래프
 분석 계층입니다. 증거를 보존하고 워크스페이스 간 데이터를 격리하면서 자산, 이벤트,
 IOC, 취약점, 위협 행위자, MITRE ATT&CK 기법(Technique)을 연결하고 상관분석하는 위협
@@ -7,6 +18,27 @@ IOC, 취약점, 위협 행위자, MITRE ATT&CK 기법(Technique)을 연결하고
 
 > 현재 상태: STIX 2.1 번들 수집·보존·내보내기 계층까지 구현되었습니다. 다음 단계는 IOC
 > 정규화 및 중복 제거입니다.
+
+## 목차
+
+- [프로젝트 개요](#프로젝트-개요)
+- [현재 구현 범위](#현재-구현-범위)
+- [아키텍처](#아키텍처)
+- [빠른 시작](#빠른-시작)
+- [STIX 2.1 수집](#stix-21-수집)
+- [그래프 모델](#그래프-모델)
+- [품질과 보안 원칙](#품질과-보안-원칙)
+- [로드맵](#로드맵)
+
+## 프로젝트 개요
+
+ThreatGraph는 서로 다른 보안 데이터 소스를 하나의 workspace-scoped 그래프로 통합합니다.
+수집된 이벤트에서 IOC를 추출하고, 엔터티를 정규화한 뒤, 관계·Evidence·MITRE ATT&CK
+Technique를 연결하여 시간 기반 상관분석과 설명 가능한 탐색을 제공합니다.
+
+핵심 흐름은 다음과 같습니다.
+
+`보안 이벤트 수집 → IOC 추출 → 엔터티 정규화 → 관계 생성 → ATT&CK 매핑 → 시간 기반 상관분석 → 그래프 탐색 → 근거 기반 설명`
 
 ## 기반 서비스
 
@@ -20,6 +52,20 @@ IOC, 취약점, 위협 행위자, MITRE ATT&CK 기법(Technique)을 연결하고
 - React 및 Vite 기반 웹 기본 화면
 - 영구 서비스 볼륨을 포함한 Docker Compose 개발 환경
 - Python 및 웹 품질 검사를 수행하는 CI
+
+## 현재 구현 범위
+
+현재 `main`과 `develop`에는 플랫폼 기반 및 그래프 스키마가 포함되어 있으며,
+`feat/stix-ingestion`에는 STIX 2.1 수집 계층이 추가되어 있습니다.
+
+| 영역 | 상태 | 내용 |
+| --- | --- | --- |
+| 플랫폼 기반 | 완료 | FastAPI, PostgreSQL, Neo4j, Redis/Celery, React, Docker Compose |
+| 그래프 계층 | 완료 | 타입 모델, workspace 격리, Evidence 검증, idempotent upsert |
+| STIX 2.1 | 완료 | Bundle import/export, 원본 보존, 지원 객체 매핑, TAXII 입력 경계 |
+| IOC 파이프라인 | 예정 | canonical identity, 중복 제거, 민감 값 마스킹 |
+| 상관분석·Query API | 예정 | 시간 창, 공통 IOC/자산/사용자, pagination 기반 탐색 |
+| 시각화·AI 설명 | 예정 | Cytoscape.js 탐색기, Evidence 패널, 근거 기반 narrative |
 
 ## 빠른 시작
 
@@ -47,6 +93,31 @@ docker compose up --build
 `.env.example`의 인증 정보는 격리된 로컬 개발 환경 전용입니다. 공유 환경이나 개발
 이외의 환경에서는 모든 비밀번호를 반드시 교체해야 합니다. 기본적으로 인프라 포트는
 루프백 인터페이스에만 바인딩됩니다.
+
+## 아키텍처
+
+```text
+React/Vite
+    │ HTTP
+FastAPI ───────── PostgreSQL (metadata)
+    │
+    ├──────────── Neo4j (entities, relationships, Evidence)
+    ├──────────── Redis → Celery worker (비동기 작업)
+    └──────────── STIX/TAXII adapters
+```
+
+PostgreSQL은 workspace, 작업 및 연동 메타데이터를 저장하고 Neo4j는 위협 그래프와
+Evidence-backed relationship을 저장합니다. 모든 그래프 읽기·쓰기는 `workspace_id`로
+범위를 제한합니다. 상세 설계는 [아키텍처 문서](docs/architecture.md)를 참고하십시오.
+
+## STIX 2.1 수집
+
+STIX bundle은 `STIXBundleImporter`로 검증·매핑하고, `STIXBundleExporter`로 원본 객체를
+다시 bundle로 내보낼 수 있습니다. 지원 Indicator 패턴은 domain, IPv4/IPv6, URL, file
+hash이며, 지원되지 않는 객체는 `IngestReport.skipped`에 남기고 전체 수집은 계속합니다.
+관계가 생성될 때는 같은 workspace의 Evidence가 함께 생성됩니다.
+
+구현 세부사항과 TAXII 어댑터 계약은 [STIX 문서](docs/stix.md)에 정리되어 있습니다.
 
 ## 상태 확인 엔드포인트
 
@@ -89,9 +160,28 @@ Repository는 source entity, target entity, Evidence가 모두 같은 workspace�
 relationship을 생성합니다. 지원하는 전체 schema와 저장 규칙은
 [그래프 스키마 문서](docs/graph-schema.md)를 참고하십시오.
 
-## 아직 구현하지 않은 범위
+## 그래프 모델
 
-현재 단계에는 다음 기능이 포함되지 않습니다.
+주요 엔터티는 Asset, Identity, Process, File, Domain, IPAddress, URL, Hash, Vulnerability,
+Alert, Incident, ThreatActor, Malware, Campaign, AttackTechnique, DataSource, Evidence입니다.
+관계에는 communicates_with, resolves_to, downloaded, executed, observed_on, authenticated_to,
+exploited, related_to, attributed_to, uses_technique, affected_by, mitigated_by,
+part_of_incident가 있습니다.
+
+모든 관계는 `source`, `first_seen`, `last_seen`, `confidence`, `evidence_id`, `workspace_id`를
+필수로 가집니다. 전체 제약과 identity 규칙은 [그래프 스키마 문서](docs/graph-schema.md)를
+참고하십시오.
+
+## 품질과 보안 원칙
+
+- workspace 간 데이터는 저장·조회·관계 생성 단계에서 격리합니다.
+- 모든 관계는 동일 workspace의 Evidence를 요구합니다.
+- 결정적 identity와 MERGE로 동일 IOC의 무제한 중복 노드 생성을 방지합니다.
+- 그래프에 없는 관계를 AI 설명이 사실처럼 생성하지 않도록 Evidence를 근거로 사용합니다.
+- 대규모 Query API에는 limit과 pagination을 적용합니다.
+- 민감한 IOC는 정규화 단계에서 마스킹할 수 있도록 설계합니다.
+
+## 아직 구현하지 않은 범위
 
 - IOC 정규화 파이프라인과 선택적 민감 IOC 마스킹
 - MITRE ATT&CK 및 Sigma 매핑
