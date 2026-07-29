@@ -176,3 +176,33 @@ class GraphRelationship(RelationshipCreate):
 
     created_at: AwareDatetime
     updated_at: AwareDatetime
+
+
+class GraphPage(GraphModel):
+    """Bounded workspace subgraph returned to query clients."""
+
+    nodes: list[GraphEntity]
+    relationships: list[GraphRelationship]
+    total_nodes: int = Field(ge=0)
+    limit: int = Field(ge=1, le=200)
+    offset: int = Field(ge=0)
+
+    @property
+    def next_offset(self) -> int | None:
+        """Return the next offset while more workspace entities remain."""
+
+        candidate = self.offset + len(self.nodes)
+        return candidate if candidate < self.total_nodes else None
+
+
+class GraphPath(GraphModel):
+    """A bounded path between two workspace entities."""
+
+    nodes: tuple[GraphEntity, ...]
+    relationships: tuple[GraphRelationship, ...]
+
+    @property
+    def length(self) -> int:
+        """Return the number of relationships in the path."""
+
+        return len(self.relationships)
