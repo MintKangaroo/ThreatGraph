@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from threatgraph import __version__
+from threatgraph.api.routes.analysis import router as analysis_router
 from threatgraph.api.routes.graph import router as graph_router
 from threatgraph.api.routes.health import router as health_router
 from threatgraph.config import Settings, get_settings
@@ -63,6 +64,7 @@ def create_app(
     )
     api.include_router(health_router, prefix=resolved_settings.api_prefix)
     api.include_router(graph_router, prefix=resolved_settings.api_prefix)
+    api.include_router(analysis_router, prefix=resolved_settings.api_prefix)
     return api
 
 

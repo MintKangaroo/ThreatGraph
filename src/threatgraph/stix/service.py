@@ -132,7 +132,7 @@ def parse_bundle(payload: STIXBundlePayload) -> Bundle:
     if isinstance(payload, Mapping):
         payload = json.dumps(dict(payload))
     try:
-        parsed = parse(payload, allow_custom=False, version="2.1")
+        parsed = parse(payload, allow_custom=True, version="2.1")
     except Exception as error:
         raise STIXImportError("payload is not a valid STIX 2.1 bundle") from error
     if not isinstance(parsed, Bundle) or getattr(parsed, "type", None) != "bundle":

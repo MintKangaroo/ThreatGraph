@@ -51,7 +51,10 @@ class MemoryGraph:
 
 def make_bundle() -> Bundle:
     actor = ThreatActor(name="demo actor")
-    technique = AttackPattern(name="Spearphishing Link")
+    technique = AttackPattern(
+        name="Spearphishing Link",
+        external_references=[{"source_name": "mitre-attack", "external_id": "T1566.002"}],
+    )
     indicator = Indicator(pattern="[domain-name:value = 'example.com']", pattern_type="stix")
     relation = Relationship(
         relationship_type="uses", source_ref=actor.id, target_ref=technique.id, confidence=80

@@ -193,3 +193,16 @@ class GraphPage(GraphModel):
 
         candidate = self.offset + len(self.nodes)
         return candidate if candidate < self.total_nodes else None
+
+
+class GraphPath(GraphModel):
+    """A bounded path between two workspace entities."""
+
+    nodes: tuple[GraphEntity, ...]
+    relationships: tuple[GraphRelationship, ...]
+
+    @property
+    def length(self) -> int:
+        """Return the number of relationships in the path."""
+
+        return len(self.relationships)

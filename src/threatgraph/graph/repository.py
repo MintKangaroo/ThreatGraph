@@ -14,6 +14,7 @@ from threatgraph.graph.models import (
     EntityCreate,
     GraphEntity,
     GraphPage,
+    GraphPath,
     GraphRelationship,
     RelationshipCreate,
 )
@@ -58,6 +59,43 @@ class GraphQueryRepository(Protocol):
     ) -> GraphPage:
         """Return a bounded page of entities and relationships from one workspace."""
 
+    async def get_entity(
+        self,
+        workspace_id: UUID,
+        entity_id: UUID,
+    ) -> GraphEntity | None:
+        """Return a workspace entity used as an exploration anchor."""
+
+    async def get_subgraph_in_range(
+        self,
+        workspace_id: UUID,
+        since: datetime,
+        until: datetime,
+        limit: int,
+        offset: int,
+    ) -> GraphPage:
+        """Return entities connected by relationships observed in a time range."""
+
+    async def get_neighborhood(
+        self,
+        workspace_id: UUID,
+        entity_id: UUID,
+        depth: int,
+        limit: int,
+        since: datetime | None,
+    ) -> GraphPage:
+        """Expand a bounded neighborhood around one workspace entity."""
+
+    async def get_shortest_path(
+        self,
+        workspace_id: UUID,
+        source_entity_id: UUID,
+        target_entity_id: UUID,
+        max_depth: int,
+        since: datetime | None,
+    ) -> GraphPath | None:
+        """Return a bounded shortest path inside one workspace."""
+
 
 class Neo4jGraphRepository:
     """Neo4j implementation that scopes every query by workspace_id."""
@@ -99,6 +137,69 @@ class Neo4jGraphRepository:
                 workspace_id,
                 limit,
                 offset,
+            )
+
+    async def get_subgraph_in_range(
+        self,
+        workspace_id: UUID,
+        since: datetime,
+        until: datetime,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> GraphPage:
+        _validate_pagination(limit, offset)
+        _validate_time_range(since, until)
+        async with self._driver.session(database=self._database) as session:
+            return await session.execute_read(
+                self._get_subgraph_in_range,
+                workspace_id,
+                since,
+                until,
+                limit,
+                offset,
+            )
+
+    async def get_neighborhood(
+        self,
+        workspace_id: UUID,
+        entity_id: UUID,
+        depth: int = 1,
+        limit: int = 100,
+        since: datetime | None = None,
+    ) -> GraphPage:
+        if not 1 <= depth <= 5:
+            raise ValueError("depth must be between 1 and 5")
+        _validate_pagination(limit, 0)
+        _validate_optional_time(since)
+        async with self._driver.session(database=self._database) as session:
+            return await session.execute_read(
+                self._get_neighborhood,
+                workspace_id,
+                entity_id,
+                depth,
+                limit,
+                since,
+            )
+
+    async def get_shortest_path(
+        self,
+        workspace_id: UUID,
+        source_entity_id: UUID,
+        target_entity_id: UUID,
+        max_depth: int = 8,
+        since: datetime | None = None,
+    ) -> GraphPath | None:
+        if not 1 <= max_depth <= 8:
+            raise ValueError("max_depth must be between 1 and 8")
+        _validate_optional_time(since)
+        async with self._driver.session(database=self._database) as session:
+            return await session.execute_read(
+                self._get_shortest_path,
+                workspace_id,
+                source_entity_id,
+                target_entity_id,
+                max_depth,
+                since,
             )
 
     async def upsert_relationship(
@@ -196,7 +297,9 @@ class Neo4jGraphRepository:
             OPTIONAL MATCH (source)-[relationship]->(target:Entity {
                 workspace_id: $workspace_id
             })
-            WHERE target IN page_nodes
+            WHERE
+                relationship.workspace_id = $workspace_id
+                AND target IN page_nodes
             RETURN
                 [node IN page_nodes | properties(node)] AS nodes,
                 [
@@ -230,6 +333,199 @@ class Neo4jGraphRepository:
             total_nodes=total_nodes,
             limit=limit,
             offset=offset,
+        )
+
+    @staticmethod
+    async def _get_subgraph_in_range(
+        transaction: AsyncManagedTransaction,
+        workspace_id: UUID,
+        since: datetime,
+        until: datetime,
+        limit: int,
+        offset: int,
+    ) -> GraphPage:
+        result = await transaction.run(
+            """
+            OPTIONAL MATCH (source:Entity {
+                workspace_id: $workspace_id
+            })-[relationship]-(target:Entity {
+                workspace_id: $workspace_id
+            })
+            WHERE
+                relationship.workspace_id = $workspace_id
+                AND relationship.last_seen >= $since
+                AND relationship.first_seen <= $until
+            WITH
+                collect(DISTINCT source) + collect(DISTINCT target) AS duplicate_nodes,
+                collect(DISTINCT relationship) AS all_relationships
+            WITH
+                reduce(
+                    unique_nodes = [],
+                    node IN duplicate_nodes |
+                    CASE
+                        WHEN node IS NULL OR node IN unique_nodes THEN unique_nodes
+                        ELSE unique_nodes + node
+                    END
+                ) AS all_nodes,
+                all_relationships
+            WITH
+                all_nodes[$offset..$page_end] AS page_nodes,
+                all_relationships,
+                size(all_nodes) AS total_nodes
+            WITH
+                page_nodes,
+                total_nodes,
+                [node IN page_nodes | node.id] AS page_node_ids,
+                all_relationships
+            RETURN
+                [node IN page_nodes | properties(node)] AS nodes,
+                [
+                    item IN all_relationships
+                    WHERE
+                        item.source_entity_id IN page_node_ids
+                        AND item.target_entity_id IN page_node_ids
+                    | properties(item)
+                ] AS relationships,
+                total_nodes
+            """,
+            workspace_id=str(workspace_id),
+            since=since,
+            until=until,
+            offset=offset,
+            page_end=offset + limit,
+        )
+        return _deserialize_page(result=await result.single(), limit=limit, offset=offset)
+
+    @staticmethod
+    async def _get_neighborhood(
+        transaction: AsyncManagedTransaction,
+        workspace_id: UUID,
+        entity_id: UUID,
+        depth: int,
+        limit: int,
+        since: datetime | None,
+    ) -> GraphPage:
+        query = f"""
+        MATCH (center:Entity {{
+            workspace_id: $workspace_id,
+            id: $entity_id
+        }})
+        OPTIONAL MATCH path=(center)-[*1..{depth}]-(neighbor:Entity {{
+            workspace_id: $workspace_id
+        }})
+        WHERE
+            path IS NULL
+            OR (
+                all(node IN nodes(path) WHERE node.workspace_id = $workspace_id)
+                AND all(
+                    item IN relationships(path)
+                    WHERE
+                        item.workspace_id = $workspace_id
+                        AND ($since IS NULL OR item.last_seen >= $since)
+                )
+            )
+        WITH
+            center,
+            [
+                node IN collect(DISTINCT neighbor)
+                WHERE node IS NOT NULL
+            ][..$neighbor_limit] AS neighbors
+        WITH [center] + neighbors AS page_nodes
+        UNWIND page_nodes AS source
+        OPTIONAL MATCH (source)-[relationship]-(target:Entity {{
+            workspace_id: $workspace_id
+        }})
+        WHERE
+            target IN page_nodes
+            AND relationship.workspace_id = $workspace_id
+            AND ($since IS NULL OR relationship.last_seen >= $since)
+        RETURN
+            [node IN page_nodes | properties(node)] AS nodes,
+            [
+                item IN collect(DISTINCT relationship)
+                WHERE item IS NOT NULL | properties(item)
+            ] AS relationships,
+            size(page_nodes) AS total_nodes
+        """
+        result = await transaction.run(
+            query,
+            workspace_id=str(workspace_id),
+            entity_id=str(entity_id),
+            neighbor_limit=limit - 1,
+            since=since,
+        )
+        record = await result.single()
+        if record is None:
+            return GraphPage(
+                nodes=[],
+                relationships=[],
+                total_nodes=0,
+                limit=limit,
+                offset=0,
+            )
+        return _deserialize_page(result=record, limit=limit, offset=0)
+
+    @staticmethod
+    async def _get_shortest_path(
+        transaction: AsyncManagedTransaction,
+        workspace_id: UUID,
+        source_entity_id: UUID,
+        target_entity_id: UUID,
+        max_depth: int,
+        since: datetime | None,
+    ) -> GraphPath | None:
+        query = f"""
+        MATCH (source:Entity {{
+            workspace_id: $workspace_id,
+            id: $source_entity_id
+        }})
+        MATCH (target:Entity {{
+            workspace_id: $workspace_id,
+            id: $target_entity_id
+        }})
+        OPTIONAL MATCH path=shortestPath((source)-[*..{max_depth}]-(target))
+        WHERE
+            path IS NULL
+            OR (
+                all(node IN nodes(path) WHERE node.workspace_id = $workspace_id)
+                AND all(
+                    item IN relationships(path)
+                    WHERE
+                        item.workspace_id = $workspace_id
+                        AND ($since IS NULL OR item.last_seen >= $since)
+                )
+            )
+        RETURN
+            CASE
+                WHEN path IS NULL THEN []
+                ELSE [node IN nodes(path) | properties(node)]
+            END AS nodes,
+            CASE
+                WHEN path IS NULL THEN []
+                ELSE [item IN relationships(path) | properties(item)]
+            END AS relationships
+        """
+        result = await transaction.run(
+            query,
+            workspace_id=str(workspace_id),
+            source_entity_id=str(source_entity_id),
+            target_entity_id=str(target_entity_id),
+            since=since,
+        )
+        record = await result.single()
+        if record is None:
+            return None
+        raw_nodes = record.get("nodes")
+        raw_relationships = record.get("relationships")
+        if not isinstance(raw_nodes, list) or not isinstance(raw_relationships, list):
+            raise GraphIntegrityError("Neo4j returned an invalid graph path")
+        if not raw_nodes:
+            return None
+        return GraphPath(
+            nodes=tuple(_deserialize_entity(node) for node in raw_nodes),
+            relationships=tuple(
+                _deserialize_relationship(relationship) for relationship in raw_relationships
+            ),
         )
 
     @staticmethod
@@ -349,3 +645,49 @@ def _deserialize_relationship(value: Any) -> GraphRelationship:
 
 def _native_datetime(value: Any) -> Any:
     return value.to_native() if isinstance(value, Neo4jDateTime) else value
+
+
+def _validate_pagination(limit: int, offset: int) -> None:
+    if not 1 <= limit <= 200:
+        raise ValueError("limit must be between 1 and 200")
+    if offset < 0:
+        raise ValueError("offset must not be negative")
+
+
+def _validate_optional_time(value: datetime | None) -> None:
+    if value is not None and value.tzinfo is None:
+        raise ValueError("time filters must be timezone-aware")
+
+
+def _validate_time_range(since: datetime, until: datetime) -> None:
+    _validate_optional_time(since)
+    _validate_optional_time(until)
+    if since > until:
+        raise ValueError("since must not be after until")
+
+
+def _deserialize_page(
+    result: Mapping[str, Any] | None,
+    limit: int,
+    offset: int,
+) -> GraphPage:
+    if result is None:
+        raise GraphIntegrityError("Neo4j did not return a graph page")
+    raw_nodes = result.get("nodes")
+    raw_relationships = result.get("relationships")
+    total_nodes = result.get("total_nodes")
+    if (
+        not isinstance(raw_nodes, list)
+        or not isinstance(raw_relationships, list)
+        or not isinstance(total_nodes, int)
+    ):
+        raise GraphIntegrityError("Neo4j returned an invalid graph page")
+    return GraphPage(
+        nodes=[_deserialize_entity(node) for node in raw_nodes],
+        relationships=[
+            _deserialize_relationship(relationship) for relationship in raw_relationships
+        ],
+        total_nodes=total_nodes,
+        limit=limit,
+        offset=offset,
+    )

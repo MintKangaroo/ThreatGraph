@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import NAMESPACE_URL, UUID, uuid5
 
+from threatgraph.attack import attack_pattern_to_entity
 from threatgraph.graph.models import (
     EntityCreate,
     EntityType,
@@ -76,6 +77,10 @@ def graph_id(object_id: str, suffix: str = "") -> UUID:
 def object_to_entity(workspace_id: UUID, obj: Any) -> EntityCreate | None:
     object_id = stix_id(obj)
     object_type = getattr(obj, "type", "")
+    if object_type == "attack-pattern":
+        attack_entity = attack_pattern_to_entity(workspace_id, obj)
+        if attack_entity is not None:
+            return attack_entity
     entity_type: EntityType | None = DIRECT_ENTITY_TYPES.get(object_type)
     key_value: str | None = None
     if object_type == "indicator":
