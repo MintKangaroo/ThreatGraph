@@ -14,6 +14,7 @@
 [![STIX](https://img.shields.io/badge/STIX-2.1-6C63FF)](https://oasis-open.github.io/cti-documentation/)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-52E2BC)](#품질-검증)
 [![MVP](https://img.shields.io/badge/MVP-10%2F10_complete-52E2BC)](#현재-구현-상태)
+[![Release](https://img.shields.io/github/v/release/MintKangaroo/ThreatGraph?color=6C8CFF)](https://github.com/MintKangaroo/ThreatGraph/releases/tag/v0.1.0)
 [![License](https://img.shields.io/github/license/MintKangaroo/ThreatGraph?color=52E2BC)](LICENSE)
 
 </div>
@@ -329,7 +330,8 @@ make check
 | [API](docs/api.md) | health, graph, analysis, export 계약 |
 | [Platform Integrations](docs/integrations.md) | downstream envelope와 event type |
 | [Threat Model](docs/threat-model.md) | trust boundary와 abuse case |
-| [Roadmap](docs/roadmap.md) | 다음 구현 단계 |
+| [Roadmap](docs/roadmap.md) | 완료된 MVP와 Post-MVP 운영 통합 |
+| [Session Handoff](HANDOFF.md) | 다음 세션 시작점, 검증 결과, 실행 절차 |
 | [Contributing](CONTRIBUTING.md) | 개발·검증·브랜치 규칙 |
 
 ## 기여 및 라이선스

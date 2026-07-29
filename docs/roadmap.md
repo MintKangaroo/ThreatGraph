@@ -29,3 +29,17 @@ The initial ThreatGraph delivery milestones are complete.
 Future work is release-oriented: deployment-specific authentication/authorization, production
 TAXII credentials, downstream delivery transports, and scale testing against deployment-sized
 datasets. These concerns remain outside the repository's vendor-neutral core.
+
+## Post-MVP deployment cycle
+
+These items are planned deployment integrations, not missing MVP core functionality.
+
+| Priority | Workstream | Completion criteria |
+| --- | --- | --- |
+| P1 | Identity and workspace authorization | The selected IdP authenticates callers, every workspace route rejects unauthorized access, and cross-workspace tests pass. |
+| P1 | Production TAXII and delivery transports | Credential rotation, pagination, retry/backoff, idempotency, and dead-letter behavior are tested against the selected systems. |
+| P2 | Scale and performance validation | Representative datasets have documented API latency, Neo4j query plans, correlation truncation behavior, and resource limits. |
+| P2 | Operational readiness | Metrics, traces, audit logs, retention, backup/restore, and incident runbooks are connected to the deployment platform. |
+
+Start only after the target identity provider, TAXII server, downstream transport, data volume, and
+service-level objectives are known. Keep vendor-specific policy outside the graph domain modules.
