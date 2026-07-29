@@ -1,5 +1,7 @@
 # Roadmap
 
+**MVP Core status: 100% complete (10/10 milestones).**
+
 The initial ThreatGraph delivery milestones are complete.
 
 1. **Platform foundation (complete):** FastAPI, PostgreSQL, Neo4j, Redis/Celery, React, Compose, and

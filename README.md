@@ -13,6 +13,7 @@
 [![Neo4j](https://img.shields.io/badge/Neo4j-5.26-018BFF?logo=neo4j&logoColor=white)](https://neo4j.com/)
 [![STIX](https://img.shields.io/badge/STIX-2.1-6C63FF)](https://oasis-open.github.io/cti-documentation/)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-52E2BC)](#품질-검증)
+[![MVP](https://img.shields.io/badge/MVP-10%2F10_complete-52E2BC)](#현재-구현-상태)
 [![License](https://img.shields.io/github/license/MintKangaroo/ThreatGraph?color=52E2BC)](LICENSE)
 
 </div>
@@ -104,6 +105,11 @@ Technique를 하나의 그래프로 정규화하고, 관계마다 Evidence와 �
 - Python strict typing, 100% backend coverage, React interaction tests
 
 ## 현재 구현 상태
+
+> [!IMPORTANT]
+> **MVP Core 완성도: 100% (초기 로드맵 10/10 완료).** 아래 기능은 모두 구현·테스트되어
+> Docker Compose로 실행할 수 있습니다. 인증/권한, 실제 TAXII credential, downstream
+> 전송 transport는 사용하는 조직의 인프라에 맞춰 연결하는 배포 영역입니다.
 
 | 영역 | 상태 | 구현 내용 |
 | --- | :---: | --- |
