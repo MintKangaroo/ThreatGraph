@@ -16,6 +16,11 @@ All data crossing a boundary is untrusted.
 - Data-service ports bind to loopback in the development Compose environment
 - Secrets excluded through `.gitignore`; placeholders only in `.env.example`
 - API readiness errors are sanitized and time-bounded
+- Graph reads and writes always include `workspace_id`
+- Graph query pages enforce a maximum entity limit and non-negative offset
+- Sensitive graph entities are masked at the public HTTP response boundary
+- Relationship writes require an existing `Evidence` node in the same workspace
+- Reserved graph properties cannot be overridden by untrusted attributes
 - Celery accepts JSON serialization only
 - Read-only GitHub Actions permissions
 - Static analysis includes common Python security rules

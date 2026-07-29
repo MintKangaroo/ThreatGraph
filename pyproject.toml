@@ -22,9 +22,13 @@ dependencies = [
   "neo4j>=5.28,<6",
   "pydantic-settings>=2.7,<3",
   "redis>=5.2,<6",
+  "stix2>=3.0,<4",
   "sqlalchemy[asyncio]>=2.0,<3",
   "uvicorn[standard]>=0.34,<1",
 ]
+
+[project.scripts]
+threatgraph-schema = "threatgraph.graph.bootstrap:main"
 
 [project.optional-dependencies]
 dev = [
@@ -55,7 +59,7 @@ strict = true
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
-module = "celery.*"
+module = ["celery.*", "stix2.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
