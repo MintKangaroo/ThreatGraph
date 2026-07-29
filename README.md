@@ -20,7 +20,7 @@
 <p align="center">
   <img src="docs/assets/threatgraph-dashboard.png" alt="ThreatGraph 관계 그래프 대시보드" width="100%" />
   <br />
-  <sub>Workspace overview — metrics, relationship graph, entity details, and grounded Evidence</sub>
+  <sub>Workspace overview — metrics, grounded correlation, relationship graph, and Evidence</sub>
 </p>
 
 > [!NOTE]
@@ -46,8 +46,8 @@ Technique를 하나의 그래프로 정규화하고, 관계마다 Evidence와 �
 
 1. **Collect** — STIX/TAXII, SIEM·EDR 이벤트, IOC 피드를 입력받습니다.
 2. **Normalize** — 객체를 검증·보존하고 IOC를 canonicalize, deduplicate, mask합니다.
-3. **Correlate** — 17개 엔터티와 13개 관계를 workspace-scoped Neo4j 그래프로 연결합니다.
-4. **Investigate** — 제한된 Graph API를 통해 검색·Critical path·Evidence 조사 화면을 제공합니다.
+3. **Correlate** — 시간창·공통 IOC/자산/사용자·ATT&CK chain 규칙으로 관련 활동을 찾습니다.
+4. **Investigate** — 제한된 Graph API와 근거 내러티브로 경로·Evidence를 함께 조사합니다.
 
 ## 주요 기능
 
@@ -57,6 +57,8 @@ Technique를 하나의 그래프로 정규화하고, 관계마다 Evidence와 �
 - 전역 엔터티 검색과 유형별 필터
 - Critical path 강조와 1–72시간 관측 범위 조절
 - 노드 선택에 따라 갱신되는 속성·관계·Evidence 패널
+- Evidence 인용 수와 명시적 gap을 표시하는 grounded correlation 요약
+- 라이브 노드 더블클릭으로 서버 기반 2-hop neighborhood 확장
 - 확대·축소·초기화 및 현재 subgraph JSON 내보내기
 - API 상태 표시, 오프라인 데모 fallback, 반응형 레이아웃
 - `VITE_WORKSPACE_ID` 또는 `?workspace=<UUID>`를 통한 실제 워크스페이스 조회
@@ -80,13 +82,23 @@ Technique를 하나의 그래프로 정규화하고, 관계마다 Evidence와 �
 
 - STIX 2.1 Bundle 검증, 원본 보존, import/export
 - Domain, IPv4/IPv6, URL, SHA 계열 Indicator pattern 매핑
+- 공식 ATT&CK attack-pattern의 Technique/sub-technique, tactic, platform 정규화
+- Sigma `attack.t####` 태그를 같은 canonical Technique identity로 매핑
 - TAXII 비동기 입력 경계와 최대 객체 수 제한
 - IP, domain, URL, hash canonicalization과 안정적인 identity
 - 중복 제거 및 선택적 민감 IOC 마스킹
 
+### Explainable correlation & integrations
+
+- 최대 30일 시간창 안에서 공통 IOC·asset·identity pivot 상관분석
+- 인시던트에 연결된 복수 ATT&CK Technique chain 탐지
+- 입력 facts가 같으면 같은 UUID가 생성되는 결정적 finding
+- claim마다 relationship ID, Evidence ID, confidence를 보존하는 grounded narrative
+- AI-SOC Dashboard, AutoPentest AI, SentinelFlow용 versioned export envelope
+
 ### Platform foundation
 
-- FastAPI liveness/readiness 및 workspace Graph Query API
+- FastAPI liveness/readiness, graph exploration, correlation 및 export API
 - PostgreSQL metadata store, Neo4j graph store, Redis/Celery runtime
 - Docker Compose 서비스 의존성·healthcheck·영구 볼륨
 - Python strict typing, 100% backend coverage, React interaction tests
@@ -99,11 +111,12 @@ Technique를 하나의 그래프로 정규화하고, 관계마다 Evidence와 �
 | Graph schema & repository | ✅ | Typed model, Evidence edge, workspace isolation, idempotent upsert |
 | STIX 2.1 ingestion | ✅ | Bundle import/export, object mapping, TAXII boundary, raw preservation |
 | IOC normalization | ✅ | Canonical identity, deduplication, optional masking |
-| Graph Query API | ✅ | Bounded workspace subgraph, limit/offset, sensitive entity masking |
-| Investigation dashboard | ✅ | Search, filters, timeline, details, evidence, export, live/demo mode |
-| ATT&CK knowledge ingestion | 🧭 | 공식 지식 베이스 import와 자동 Technique mapping |
-| Correlation engine | 🧭 | 시간 창, 공통 IOC/asset/identity, technique chain |
-| Grounded narratives | 🧭 | Evidence 인용 기반 인시던트 설명 |
+| ATT&CK knowledge mapping | ✅ | Technique/sub-technique identity, STIX metadata, Sigma tags |
+| Correlation engine | ✅ | 시간창, 공통 IOC/asset/identity, ATT&CK technique chain |
+| Graph Query API | ✅ | Pagination, time range, neighborhood, incident graph, shortest path, masking |
+| Investigation dashboard | ✅ | Search, filters, timeline, correlation, server expansion, export, live/demo |
+| Grounded narratives | ✅ | Relationship/Evidence 인용, confidence, explicit gaps |
+| Platform adapters | ✅ | AI-SOC Dashboard, AutoPentest AI, SentinelFlow export contracts |
 
 > 대시보드의 기본 시나리오는 UI 기능을 바로 확인하기 위한 데모 데이터입니다.
 > 실제 그래프 조회 경계와 민감 데이터 마스킹은 백엔드 API에 구현되어 있습니다.
@@ -124,7 +137,7 @@ docker compose up --build
 | Service | URL | 역할 |
 | --- | --- | --- |
 | Dashboard | <http://localhost:5173> | 그래프 탐색과 Evidence 확인 |
-| API / OpenAPI | <http://localhost:8000/docs> | 상태·그래프 API |
+| API / OpenAPI | <http://localhost:8000/docs> | 상태·그래프·상관분석 API |
 | Neo4j Browser | <http://localhost:7474> | 로컬 그래프 관리 |
 
 `graph-init`이 API와 worker 시작 전에 constraint와 index를 설치합니다. 서비스는
@@ -176,9 +189,14 @@ make graph-schema # Neo4j schema only
 | `GET` | `/health/live` | API process liveness |
 | `GET` | `/health/ready` | PostgreSQL, Neo4j, Redis readiness |
 | `GET` | `/workspaces/{workspace_id}/graph` | workspace subgraph 조회 |
+| `GET` | `/workspaces/{workspace_id}/graph/entities/{entity_id}/neighborhood` | bounded neighborhood 확장 |
+| `GET` | `/workspaces/{workspace_id}/graph/paths/shortest` | bounded shortest path |
+| `GET` | `/workspaces/{workspace_id}/graph/incidents/{incident_id}` | incident 중심 subgraph |
+| `GET` | `/workspaces/{workspace_id}/analysis/correlations` | 근거 기반 상관분석과 내러티브 |
+| `GET` | `/workspaces/{workspace_id}/analysis/exports/{platform}` | 플랫폼 export envelope |
 
-Graph API는 `limit=1..200`, `offset>=0`을 강제하고 다음 offset을 응답합니다.
-`sensitive=true` 엔터티의 key, name, properties는 API 경계에서 마스킹됩니다.
+Graph API는 `limit=1..200`, traversal depth, time range를 제한합니다. `sensitive=true`
+엔터티의 key, name, properties는 API 경계에서 마스킹됩니다.
 
 ```bash
 curl "http://localhost:8000/api/v1/workspaces/\
@@ -253,6 +271,10 @@ threatgraph/
 │   ├── infrastructure/   # PostgreSQL, Neo4j, Redis resources
 │   ├── ioc/              # normalization, identity, masking
 │   ├── stix/             # STIX mapping, store, TAXII boundary
+│   ├── attack.py         # ATT&CK and Sigma technique identity
+│   ├── correlation.py    # bounded deterministic graph rules
+│   ├── narrative.py      # Evidence-grounded explanations
+│   ├── platforms.py      # downstream export contracts
 │   └── worker/           # Celery runtime
 ├── web/src/              # React investigation dashboard
 ├── tests/unit/           # backend unit tests
@@ -264,9 +286,9 @@ threatgraph/
 
 현재 검증 기준:
 
-- Backend: **63 tests**, **100% statement coverage**
-- Frontend: **7 tests**, dashboard rendering, API fallback, graph selection/filter, deep link,
-  global search
+- Backend: **96 tests**, **100% statement coverage**
+- Frontend: **12 tests**, dashboard rendering, API fallback, graph selection/filter, deep link,
+  global search, neighborhood and correlation adapters
 - `ruff` lint/format, strict `mypy`, TypeScript build
 - Docker Compose configuration validation
 - GitHub Actions backend/web/compose/graph integration jobs
@@ -280,6 +302,8 @@ make check
 - 모든 graph read/write는 `workspace_id`로 격리합니다.
 - 관계는 동일 workspace의 Evidence 없이는 생성되지 않습니다.
 - Query API는 결과 크기를 제한하고 민감 엔터티를 응답 전에 마스킹합니다.
+- 그래프 traversal depth와 correlation time window를 제한해 과도한 쿼리를 차단합니다.
+- 내러티브와 플랫폼 export는 relationship/Evidence ID를 끝까지 유지합니다.
 - readiness 오류는 내부 host, credential, stack trace를 노출하지 않습니다.
 - Compose의 기본 secret은 격리된 로컬 개발 전용입니다.
 - 승인 없는 대상 스캔이나 공격 행위는 이 프로젝트의 범위가 아닙니다.
@@ -294,7 +318,10 @@ make check
 | [Graph Schema](docs/graph-schema.md) | entity, relationship, identity 규칙 |
 | [STIX 2.1](docs/stix.md) | import/export와 지원 객체 |
 | [IOC Pipeline](docs/ioc.md) | 정규화, 중복 제거, 마스킹 |
-| [API](docs/api.md) | health 및 graph query 계약 |
+| [ATT&CK Mapping](docs/attack.md) | Technique identity와 Sigma tag 매핑 |
+| [Correlation](docs/analysis.md) | 시간창 규칙과 Evidence grounding |
+| [API](docs/api.md) | health, graph, analysis, export 계약 |
+| [Platform Integrations](docs/integrations.md) | downstream envelope와 event type |
 | [Threat Model](docs/threat-model.md) | trust boundary와 abuse case |
 | [Roadmap](docs/roadmap.md) | 다음 구현 단계 |
 | [Contributing](CONTRIBUTING.md) | 개발·검증·브랜치 규칙 |

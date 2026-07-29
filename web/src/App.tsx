@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { fetchWorkspaceGraph } from "./api";
+import {
+  fetchEntityNeighborhood,
+  fetchWorkspaceAnalysis,
+  fetchWorkspaceGraph,
+} from "./api";
 import { ACTIVITIES, DEMO_EDGES, DEMO_NODES } from "./data";
 import GraphCanvas from "./GraphCanvas";
 import Icon from "./Icon";
-import type { EntityFilter, GraphNode } from "./types";
+import type { EntityFilter, GraphNode, WorkspaceAnalysis } from "./types";
 
 type ApiState = "checking" | "available" | "unavailable";
 
@@ -16,6 +20,40 @@ const filterLabels: Record<EntityFilter, string> = {
   Asset: "Assets",
   IOC: "IOCs",
   Technique: "Techniques",
+};
+
+const DEMO_ANALYSIS: WorkspaceAnalysis = {
+  narratives: [
+    {
+      findingId: "demo-finding-1",
+      title: "Credential theft infrastructure chain",
+      summary:
+        "INC-1042 links a compromised endpoint, StealC malware, C2 infrastructure, and ATT&CK techniques through 6 evidence-backed relationships.",
+      kind: "technique_chain",
+      severity: "critical",
+      claims: [
+        {
+          text: "INC-1042 observed StealC on FIN-WS-042.",
+          relationshipId: "edge-1",
+          evidenceId: "evidence-edr-1",
+          confidence: 97,
+        },
+        {
+          text: "StealC communicated with 185.220.101.17.",
+          relationshipId: "edge-3",
+          evidenceId: "evidence-network-1",
+          confidence: 94,
+        },
+      ],
+      gaps: [],
+      grounded: true,
+    },
+  ],
+  scannedEntities: DEMO_NODES.length,
+  scannedRelationships: DEMO_EDGES.length,
+  windowStart: "2026-07-28T00:00:00Z",
+  windowEnd: "2026-07-29T00:00:00Z",
+  truncated: false,
 };
 
 function nodeMatchesFilter(node: GraphNode, filter: EntityFilter): boolean {
@@ -66,8 +104,10 @@ export default function App() {
   const [apiState, setApiState] = useState<ApiState>("checking");
   const [graphNodes, setGraphNodes] = useState(DEMO_NODES);
   const [graphEdges, setGraphEdges] = useState(DEMO_EDGES);
+  const [analysis, setAnalysis] = useState<WorkspaceAnalysis | null>(DEMO_ANALYSIS);
   const [totalEntityCount, setTotalEntityCount] = useState(2847);
   const [dataMode, setDataMode] = useState<"demo" | "live">("demo");
+  const [expandingId, setExpandingId] = useState("");
   const [selectedId, setSelectedId] = useState(
     initialParams.get("entity") ?? "incident-1042",
   );
@@ -91,17 +131,25 @@ export default function App() {
         setApiState(available ? "available" : "unavailable");
       }
       if (available && workspaceId) {
-        try {
-          const liveGraph = await fetchWorkspaceGraph(workspaceId, controller.signal);
-          if (!controller.signal.aborted && liveGraph.nodes.length) {
+        const [graphResult, analysisResult] = await Promise.allSettled([
+          fetchWorkspaceGraph(workspaceId, controller.signal),
+          fetchWorkspaceAnalysis(workspaceId, controller.signal),
+        ]);
+        if (!controller.signal.aborted) {
+          if (graphResult.status === "fulfilled" && graphResult.value.nodes.length) {
+            const liveGraph = graphResult.value;
             setGraphNodes(liveGraph.nodes);
             setGraphEdges(liveGraph.edges);
             setTotalEntityCount(liveGraph.totalNodes);
             setSelectedId(liveGraph.nodes[0].id);
             setDataMode("live");
+            setAnalysis(
+              analysisResult.status === "fulfilled" ? analysisResult.value : null,
+            );
+          } else {
+            setDataMode("demo");
+            setAnalysis(DEMO_ANALYSIS);
           }
-        } catch {
-          if (!controller.signal.aborted) setDataMode("demo");
         }
       }
     });
@@ -141,6 +189,7 @@ export default function App() {
 
   const selectedNode =
     graphNodes.find((node) => node.id === selectedId) ?? graphNodes[0];
+  const primaryNarrative = analysis?.narratives[0];
   const relatedEdges = graphEdges.filter(
     (edge) => edge.source === selectedNode.id || edge.target === selectedNode.id,
   );
@@ -202,6 +251,38 @@ export default function App() {
     setEntityFilter("All");
     setTimeRange(Math.max(24, node.observedAgo));
     setSearchOpen(false);
+  };
+
+  const expandEntity = async (nodeId: string) => {
+    const workspaceId =
+      initialParams.get("workspace") ?? import.meta.env.VITE_WORKSPACE_ID;
+    setSelectedId(nodeId);
+    if (dataMode !== "live" || !workspaceId) {
+      showToast("Connect a workspace to expand the server-side neighborhood");
+      return;
+    }
+    setExpandingId(nodeId);
+    try {
+      const neighborhood = await fetchEntityNeighborhood(
+        workspaceId,
+        nodeId,
+        new AbortController().signal,
+      );
+      if (neighborhood.nodes.length) {
+        setGraphNodes(neighborhood.nodes);
+        setGraphEdges(neighborhood.edges);
+        setTotalEntityCount(neighborhood.totalNodes);
+        setEntityFilter("All");
+        setQuery("");
+        showToast(
+          `Expanded ${neighborhood.nodes.length} entities across 2 graph hops`,
+        );
+      }
+    } catch {
+      showToast("The neighborhood could not be expanded");
+    } finally {
+      setExpandingId("");
+    }
   };
 
   return (
@@ -403,6 +484,53 @@ export default function App() {
             </article>
           </section>
 
+          <section
+            aria-labelledby="analysis-title"
+            className={`panel analysis-brief ${
+              primaryNarrative?.grounded ? "analysis-brief--grounded" : ""
+            }`}
+          >
+            <div className="analysis-brief__icon">
+              <Icon name="layers" size={20} />
+            </div>
+            <div className="analysis-brief__copy">
+              <span className="panel-kicker">
+                {dataMode === "live" ? "Live correlation" : "Demo correlation"}
+              </span>
+              <h2 id="analysis-title">
+                {primaryNarrative?.title ?? "No correlated finding in this window"}
+              </h2>
+              <p>
+                {primaryNarrative?.summary ??
+                  "The selected workspace graph has no multi-entity finding that meets the correlation rules."}
+              </p>
+            </div>
+            <div className="analysis-brief__stats">
+              <span className={`analysis-status analysis-status--${primaryNarrative?.severity ?? "medium"}`}>
+                <Icon name={primaryNarrative?.grounded ? "shield" : "alert"} size={13} />
+                {primaryNarrative?.grounded ? "Evidence grounded" : "Analyst review"}
+              </span>
+              <dl>
+                <div>
+                  <dt>Claims</dt>
+                  <dd>{primaryNarrative?.claims.length ?? 0}</dd>
+                </div>
+                <div>
+                  <dt>Evidence</dt>
+                  <dd>
+                    {new Set(
+                      primaryNarrative?.claims.map((claim) => claim.evidenceId) ?? [],
+                    ).size}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Gaps</dt>
+                  <dd>{primaryNarrative?.gaps.length ?? 0}</dd>
+                </div>
+              </dl>
+            </div>
+          </section>
+
           <section className="explorer-layout" id="graph">
             <article className="panel graph-panel">
               <header className="panel-header">
@@ -447,6 +575,7 @@ export default function App() {
                   criticalOnly={criticalOnly}
                   edges={visibleEdges}
                   nodes={visibleNodes}
+                  onExpand={expandEntity}
                   onSelect={setSelectedId}
                   onZoomChange={setZoom}
                   selectedId={selectedId}
@@ -567,6 +696,11 @@ export default function App() {
                   <div><dt>Observed</dt><dd>{selectedNode.evidence.observedAt}</dd></div>
                 </dl>
               </section>
+              {expandingId && (
+                <p className="expansion-status" role="status">
+                  Expanding the selected graph neighborhood…
+                </p>
+              )}
             </aside>
           </section>
 

@@ -45,6 +45,33 @@ export type GraphEdge = {
   critical?: boolean;
 };
 
+export type GroundedClaim = {
+  text: string;
+  relationshipId: string;
+  evidenceId: string;
+  confidence: number;
+};
+
+export type GroundedAnalysis = {
+  findingId: string;
+  title: string;
+  summary: string;
+  kind: "shared_indicator" | "shared_context" | "technique_chain";
+  severity: Exclude<RiskLevel, "low">;
+  claims: GroundedClaim[];
+  gaps: string[];
+  grounded: boolean;
+};
+
+export type WorkspaceAnalysis = {
+  narratives: GroundedAnalysis[];
+  scannedEntities: number;
+  scannedRelationships: number;
+  windowStart: string;
+  windowEnd: string;
+  truncated: boolean;
+};
+
 export type Activity = {
   id: string;
   title: string;

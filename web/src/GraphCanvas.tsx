@@ -46,6 +46,7 @@ type GraphCanvasProps = {
   zoom: number;
   criticalOnly: boolean;
   onSelect: (nodeId: string) => void;
+  onExpand: (nodeId: string) => void;
   onZoomChange: (zoom: number) => void;
 };
 
@@ -56,6 +57,7 @@ export default function GraphCanvas({
   zoom,
   criticalOnly,
   onSelect,
+  onExpand,
   onZoomChange,
 }: GraphCanvasProps) {
   const nodeMap = new Map(nodes.map((node) => [node.id, node]));
@@ -93,6 +95,7 @@ export default function GraphCanvas({
         <span><i className="legend-dot legend-dot--threat" />Threat</span>
         <span><i className="legend-dot legend-dot--technique" />Technique</span>
       </div>
+      <span className="graph-expand-hint">Double-click a node to expand 2 hops</span>
 
       <svg
         aria-label={`Threat graph with ${nodes.length} visible entities`}
@@ -194,10 +197,15 @@ export default function GraphCanvas({
                 }`}
                 key={node.id}
                 onClick={() => onSelect(node.id)}
+                onDoubleClick={() => onExpand(node.id)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
                     onSelect(node.id);
+                  }
+                  if (event.key.toLowerCase() === "e") {
+                    event.preventDefault();
+                    onExpand(node.id);
                   }
                 }}
                 role="button"

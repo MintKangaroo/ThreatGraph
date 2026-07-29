@@ -17,6 +17,10 @@ describe("ThreatGraph dashboard", () => {
 
     expect(screen.getByRole("heading", { name: "Threat landscape" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Relationship graph" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Credential theft infrastructure chain" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Evidence grounded")).toBeInTheDocument();
     expect(screen.getByText("Grounded evidence")).toBeInTheDocument();
     expect(await screen.findByText("API connected")).toBeInTheDocument();
   });
@@ -74,5 +78,90 @@ describe("ThreatGraph dashboard", () => {
       screen.getByRole("heading", { name: "185.220.101.17" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Network detection")).toBeInTheDocument();
+  });
+
+  it("explains that server-side expansion requires a live workspace", () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
+    render(<App />);
+
+    fireEvent.doubleClick(
+      screen.getByRole("button", { name: "Incident: INC-1042" }),
+    );
+
+    expect(
+      screen.getByText("Connect a workspace to expand the server-side neighborhood"),
+    ).toBeInTheDocument();
+  });
+
+  it("loads live correlations and expands a server-side neighborhood", async () => {
+    const workspaceId = "00000000-0000-4000-8000-000000000001";
+    const incidentId = "00000000-0000-4000-8000-000000000002";
+    window.history.replaceState({}, "", `/?workspace=${workspaceId}`);
+    const graphPage = {
+      nodes: [
+        {
+          id: incidentId,
+          entity_type: "Incident",
+          key: "incident-live",
+          name: "INC-LIVE",
+          sensitive: false,
+          properties: { severity: "high", confidence: 0.92 },
+        },
+      ],
+      relationships: [],
+      total_nodes: 1,
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: true, json: async () => graphPage })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          report: {
+            window_start: "2026-07-28T00:00:00Z",
+            window_end: "2026-07-29T00:00:00Z",
+            scanned_entities: 1,
+            scanned_relationships: 0,
+            findings: [
+              {
+                id: "finding-live",
+                kind: "shared_context",
+                severity: "high",
+              },
+            ],
+          },
+          narratives: [
+            {
+              finding_id: "finding-live",
+              title: "Live workspace correlation",
+              summary: "The live graph produced an evidence-backed finding.",
+              claims: [],
+              gaps: ["Analyst validation required."],
+              grounded: false,
+            },
+          ],
+          truncated: false,
+        }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => graphPage });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    expect(await screen.findByText("Live data")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Live workspace correlation" }),
+    ).toBeInTheDocument();
+    fireEvent.doubleClick(
+      screen.getByRole("button", { name: "Incident: INC-LIVE" }),
+    );
+    expect(
+      await screen.findByText("Expanded 1 entities across 2 graph hops"),
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      `/api/v1/workspaces/${workspaceId}/graph/entities/${incidentId}/neighborhood?depth=2&limit=100`,
+      expect.any(Object),
+    );
   });
 });
